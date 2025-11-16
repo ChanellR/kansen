@@ -9,23 +9,27 @@ export default function App() {
   const [maxSpeed, setMaxSpeed] = useState(10);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [speedHistory, setSpeedHistory] = useState<Array<{ time: number; currentSpeed: number; maxSpeed: number }>>([]);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(1);
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('vertical');
   const timeRef = useRef(0);
 
   const timelineSteps = [
     {
-      title: "Interactive Physics",
+      title: "Scene 1",
       description: "Drag the sphere to explore real-time physics simulation. Watch as speed changes dynamically based on your interactions, with momentum and friction applied naturally."
     },
     {
-      title: "Speed Monitoring",
-      description: "Track your object's velocity in real-time with the live graph. The visualization shows both current speed and maximum limits over the past 10 seconds."
+      title: "Step 1",
+      description: "Before entering block"
     },
     {
-      title: "Control & Precision",
-      description: "Fine-tune the maximum speed limit using the slider. This constraint affects how fast your object can move, giving you precise control over the simulation."
-    }
+      title: "Step 2",
+      description: "Entering block"
+    },
+    {
+      title: "Step 3",
+      description: "Leaving block"
+    },
   ];
 
   useEffect(() => {
@@ -80,19 +84,19 @@ export default function App() {
             maxSpeed={maxSpeed}
             onSpeedChange={setCurrentSpeed}
           /> */}
-          <Scene3D maxSpeed={maxSpeed} />
+          <Scene3D maxSpeed={maxSpeed} sceneNumber={currentStep}/>
         </div>
 
         {/* Right side / Bottom - Controls and Description */}
         <div className={`${layoutMode === 'horizontal' ? 'w-full lg:w-1/2 flex items-center justify-end pr-0 lg:pr-12' : 'w-full flex items-center justify-center'}`}>
-          <div className=" h-1/2 flex w-full gap-4">
+          {/* TODO: Have sceneNumber impact the layout of this div for different scenes */}
+          <div className="flex w-full gap-4">
             <TimelineDescription
               title={timelineSteps[currentStep].title}
               description={timelineSteps[currentStep].description}
               currentStep={currentStep + 1}
               totalSteps={timelineSteps.length}
             />
-            
             <SpeedControls
               maxSpeed={maxSpeed}
               currentSpeed={currentSpeed}
@@ -101,13 +105,12 @@ export default function App() {
               animate={true}
               layoutMode={layoutMode}
             />
-
           </div>
         </div>
       </div>
 
       {/* Layout Toggle Button */}
-      <button
+      {/* <button
         onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
         className="absolute top-8 left-8 p-3 rounded-full transition-all hover:scale-110"
         style={{
@@ -121,7 +124,7 @@ export default function App() {
         aria-label="Toggle layout"
       >
         {layoutMode === 'horizontal' ? <ArrowUpDown size={20} /> : <ArrowLeftRight size={20} />}
-      </button>
+      </button> */}
 
       {/* Timeline Progress Indicator */}
       {/* <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3">
