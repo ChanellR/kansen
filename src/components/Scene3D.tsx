@@ -188,6 +188,45 @@ function TrafficLight({ position, isGreen }: { position: [number, number, number
     );
 }
 
+function TrafficLightThreeColor({ position, state = 'green' }: { position: [number, number, number], state?: 'red' | 'orange' | 'green' }) {
+    return (
+        <group position={position} rotation={[0, -Math.PI / 2, Math.PI]}>
+            {/* Traffic light housing */}
+            <mesh position={[0, 0, 0]}>
+                <boxGeometry args={[0.5, 2.0, 0.4]} />
+                <meshStandardMaterial color="#1a1a1a" />
+            </mesh>
+            {/* Red light */}
+            <mesh position={[0, 0.6, 0.21]}>
+                <circleGeometry args={[0.18, 16]} />
+                <meshStandardMaterial
+                    color={state === 'red' ? "#ff0000" : "#330000"}
+                    emissive={state === 'red' ? "#ff0000" : "#000000"}
+                    emissiveIntensity={state === 'red' ? 0.5 : 0}
+                />
+            </mesh>
+            {/* Orange light */}
+            <mesh position={[0, 0, 0.21]}>
+                <circleGeometry args={[0.18, 16]} />
+                <meshStandardMaterial
+                    color={state === 'orange' ? "#ff9900" : "#331a00"}
+                    emissive={state === 'orange' ? "#ff9900" : "#000000"}
+                    emissiveIntensity={state === 'orange' ? 0.5 : 0}
+                />
+            </mesh>
+            {/* Green light */}
+            <mesh position={[0, -0.6, 0.21]}>
+                <circleGeometry args={[0.18, 16]} />
+                <meshStandardMaterial
+                    color={state === 'green' ? "#00ff00" : "#003300"}
+                    emissive={state === 'green' ? "#00ff00" : "#000000"}
+                    emissiveIntensity={state === 'green' ? 0.5 : 0}
+                />
+            </mesh>
+        </group>
+    );
+}
+
 function CircuitWire({ start, end, color = "#ffaa00", splitAtX, batteryX, onColor = "#ff6600", offColor = "#333333", active = true }: { start: [number, number, number], end: [number, number, number], color?: string, splitAtX?: number | null, batteryX?: number, onColor?: string, offColor?: string, active?: boolean }) {
     const direction = new Vector3(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
     const length = direction.length();
@@ -495,6 +534,172 @@ export function Scene2({ stepNumber }: SceneProps2) {
     );
 }
 
+interface SceneProps3 {
+    stepNumber: number;
+}
+
+export function Scene3({ stepNumber }: SceneProps3) {
+    const group = useRef<any>(null);
+    const { animations, scene } = useGLTF("models/shinkansen_with_track.glb");
+    const { actions } = useAnimations(animations, scene);
+
+    const train = scene.getObjectByName("train");
+    const rails = scene.getObjectByName("rails");
+
+    useEffect(() => {
+        if (train) {
+            train.traverse((obj: Object3D) => {
+                obj.castShadow = true;
+                if ((obj as Mesh).isMesh && (obj as Mesh).material) {
+                    const material = (obj as Mesh).material;
+                    if (Array.isArray(material)) {
+                        material.forEach((mat) => {
+                            if (mat) mat.side = DoubleSide;
+                        });
+                    } else {
+                        material.side = DoubleSide;
+                    }
+                }
+            });
+        }
+
+        // Create 3 additional rail segments (total of 4)
+        if (rails) {
+            const railSegmentLength = 23.7; // Approximate length based on Scene2
+            
+            for (let i = 1; i < 5; i++) {
+                const railsCopy = rails.clone();
+                railsCopy.position.x = i * railSegmentLength;
+                scene.add(railsCopy);
+            }
+        }
+
+        if (group.current) {
+            group.current.scale.z = -1; // Flip across z-axis
+            group.current.position.y = 0;
+        }
+
+        if (!actions) return;
+        const played: AnimationAction[] = [];
+        Object.entries(actions).forEach(([key, action]) => {
+            if (action) {       
+                if (key.startsWith("axleAction")) {
+                    action.reset();
+                    action.play();
+                    played.push(action);
+                }
+            }
+        });
+
+        return () => {
+            played.forEach((a) => a.stop());
+        };
+    }, [actions]);
+
+    // Animate train position based on stepNumber
+    useEffect(() => {
+        if (!train) return;
+
+        gsap.killTweensOf(train.position);
+
+        if (stepNumber === 1) {
+            // Start at beginning
+            gsap.set(train.position, { x: -5 });
+        } else if (stepNumber === 2) {
+            // Move through all 4 rail segments
+            gsap.set(train.position, { x: -5 });
+            gsap.to(train.position, {
+                x: 90, // 4 segments * ~23.7 length
+                duration: 8,
+                ease: "linear",
+                repeat: -1,
+                repeatDelay: 1,
+                onRepeat: () => {
+                    gsap.set(train.position, { x: 0 });
+                }
+            });
+        }
+
+        return () => {
+            gsap.killTweensOf(train.position);
+        };
+    }, [stepNumber, train]);
+
+    const railSegmentLength = 23.7;
+    const numLights = 4;
+    const warningDistance = railSegmentLength * 0.4; // how far ahead to show orange
+
+    const [trafficLightStates, setTrafficLightStates] = useState<Array<'red' | 'orange' | 'green'>>(Array(numLights).fill('green'));
+
+    // Update traffic light states based on train location in world space
+    useFrame(() => {
+        if (!train) return;
+        const worldPos = new Vector3();
+        train.getWorldPosition(worldPos);
+        const tx = worldPos.x + railSegmentLength * 0.4;
+
+        // Compute target state for each light
+        const nextStates: Array<'red' | 'orange' | 'green'> = [];
+        for (let idx = 0; idx < numLights; idx++) {
+            // mapping: lights positioned at i*railSegmentLength where i is 1..numLights
+            const lightIndex = idx + 1;
+            const startX = lightIndex * railSegmentLength;
+            const endX = startX + railSegmentLength;
+
+            // If train is in the rail segment ahead of the light -> red
+            if (tx >= startX && tx < endX) {
+                nextStates.push('red');
+            } else if (tx >= endX && tx < endX + railSegmentLength) {
+                // Train is in next segment
+                nextStates.push('orange');
+            } else {
+                // Otherwise clear -> green
+                nextStates.push('green');
+            }
+        }
+
+        // Only update React state when changed
+        let changed = false;
+        for (let i = 0; i < numLights; i++) {
+            if (trafficLightStates[i] !== nextStates[i]) {
+                changed = true;
+                break;
+            }
+        }
+        if (changed) {
+            setTrafficLightStates(nextStates);
+        }
+    });
+    
+    return (
+        <>
+            <primitive ref={group} object={scene} />
+            <mesh position={[45, -0.8, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+                <planeGeometry args={[140, 10]} />
+                <meshStandardMaterial color="grey" />
+            </mesh>
+
+            {/* Traffic lights at the beginning of each rail segment */}
+            {[1, 2, 3, 4].map((i, idx) => (
+                <group key={i}>
+                    <TrafficLightThreeColor 
+                        position={[i * railSegmentLength, 3, 3]} 
+                        state={trafficLightStates[idx]}
+                    />
+                    {/* Pole underneath the traffic light */}
+                    <mesh position={[i * railSegmentLength, 1.5, 3]} rotation={[0, 0, 0]}>
+                        <cylinderGeometry args={[0.1, 0.1, 3, 16]} />
+                        <meshStandardMaterial color="#333333" />
+                    </mesh>
+                </group>
+            ))}
+
+            {/* Global axes at world origin */}
+            <primitive object={new AxesHelper(20)} position={[0, 0, 0]} />
+        </>
+    );
+}
+
 interface ATCProps {
     maxSpeed: number;
     sceneNumber: number;
@@ -520,7 +725,10 @@ export function Scene3D({ maxSpeed, sceneNumber }: ATCProps) {
     function CameraUpdater({ sceneNumber }: { sceneNumber: number }) {
         const { camera } = useThree();
         useEffect(() => {
-            if (sceneNumber > 0) {
+            if (sceneNumber > 3) {
+                camera.position.set(16.32, 4.13, 5.99);
+                camera.rotation.set(-0.00, -0.57, -0.00);
+            } else if (sceneNumber > 0) {
                 camera.position.set(-12, 11, 0);
                 camera.rotation.set(-Math.PI / 2, 0, 0);
             } else {
@@ -537,18 +745,18 @@ export function Scene3D({ maxSpeed, sceneNumber }: ATCProps) {
     return (
         <div className="w-full h-[600px]">
             <Canvas shadows>
-                {/* <OrbitControls /> */}
                 <CameraUpdater sceneNumber={sceneNumber} />
+                {/* <OrbitControls /> */}
                 {/* <CameraLogger /> */}
                 <>
                     {sceneNumber > 3 &&
                         <>
                             <ambientLight intensity={10} />
-                            <directionalLight position={[0, 10, 0]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-                            {/* <Scene1 stepNumber={sceneNumber} /> */}
+                            <directionalLight position={[10, 8, 8]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+                            <Scene3 stepNumber={sceneNumber - 3} />
                         </>
                     }
-                    {sceneNumber > 0 &&
+                    {sceneNumber > 0 && sceneNumber <= 3 &&
                         <>
                             <ambientLight intensity={10} />
                             <directionalLight position={[0, 10, 0]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />

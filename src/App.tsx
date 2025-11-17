@@ -15,24 +15,28 @@ export default function App() {
 
   const timelineSteps = [
     {
-      title: "Scene 1",
+      title: "Home",
       description: "Drag the sphere to explore real-time physics simulation. Watch as speed changes dynamically based on your interactions, with momentum and friction applied naturally."
     },
     {
-      title: "Step 1",
+      title: "Block Signaling",
       description: "Before entering block"
     },
     {
-      title: "Step 2",
+      title: "Block Signaling",
       description: "Entering block"
     },
     {
-      title: "Step 3",
+      title: "Block Signaling",
       description: "Leaving block"
     },
     {
       title: "Multi-level signaling",
       description: "Leaving block"
+    },
+    {
+      title: "Multi-level signaling",
+      description: "Moving through"
     },
   ];
 
