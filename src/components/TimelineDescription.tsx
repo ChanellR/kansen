@@ -22,9 +22,9 @@ export function TimelineDescription({
   }, [title]);
 
   return (
-    <div className="w-full flex justify-center items-center">
+    <div className="w-full space-y-6">
       <div 
-        className={`max-w-md p-8 transition-all duration-700 ${
+        className={`p-8 transition-all duration-700 ${
           animate ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'
         }`}
         style={{
@@ -67,7 +67,7 @@ export function TimelineDescription({
           style={{
             color: '#D4899E',
             lineHeight: '1.8',
-            fontSize: '1.125rem'
+            fontSize: '1.525rem'
           }}
         >
           {description}

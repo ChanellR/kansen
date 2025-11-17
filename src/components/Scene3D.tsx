@@ -695,7 +695,7 @@ export function Scene3({ stepNumber }: SceneProps3) {
             ))}
 
             {/* Global axes at world origin */}
-            <primitive object={new AxesHelper(20)} position={[0, 0, 0]} />
+            {/* <primitive object={new AxesHelper(20)} position={[0, 0, 0]} /> */}
         </>
     );
 }
