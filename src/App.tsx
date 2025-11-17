@@ -9,7 +9,7 @@ export default function App() {
   const [maxSpeed, setMaxSpeed] = useState(10);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [speedHistory, setSpeedHistory] = useState<Array<{ time: number; currentSpeed: number; maxSpeed: number }>>([]);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0);
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('vertical');
   const timeRef = useRef(0);
 
