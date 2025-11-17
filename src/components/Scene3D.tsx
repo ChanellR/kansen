@@ -10,6 +10,7 @@ import { fromHalfFloat } from 'three/src/extras/DataUtils.js';
 // https://ja.wikipedia.org/wiki/%E6%8C%AF%E5%B9%85%E5%A4%89%E8%AA%BF
 
 useGLTF.preload("models/shinkansen_with_track.glb");
+useGLTF.preload("models/shinkansen_separated.glb");
 
 interface SceneProps1 {
     maxSpeed: number
@@ -333,7 +334,24 @@ export function Scene2({ stepNumber }: SceneProps2) {
             group.current.scale.z = -1; // Flip across z-axis
         }
 
-    }, [stepNumber]);
+        if (!actions) return;
+        const played: AnimationAction[] = [];
+        Object.entries(actions).forEach(([key, action]) => {
+            if (action) {
+                // BUG: The axle animations are broken because of train parent removal
+                // if (key.startsWith("axleAction")) {
+                //     action.reset();
+                //     action.play();
+                //     played.push(action);
+                // }
+            }
+        });
+
+        return () => {
+            played.forEach((a) => a.stop());
+        };
+
+    }, [actions]);
 
     // Track axle objects and their world X positions so we can short circuit the rails
     const axleObjectRef = useRef<Object3D | null>(null);
@@ -392,10 +410,10 @@ export function Scene2({ stepNumber }: SceneProps2) {
 
         if (stepNumber === 1) {
             // Step 1: Position at -30
-            gsap.set(empty.position, { x: -30 });
+            gsap.set(empty.position, { x: -25 });
         } else if (stepNumber === 2) {
             // Step 2: Loop from -30 to 0
-            gsap.set(empty.position, { x: -30 });
+            gsap.set(empty.position, { x: -25 });
             gsap.to(empty.position, {
                 x: -0.1,
                 duration: 4,
@@ -496,24 +514,38 @@ export function Scene3D({ maxSpeed, sceneNumber }: ATCProps) {
         return null;
     }
 
+    // Update camera position/rotation in response to `sceneNumber` changes.
+    // React Three Fiber `camera` is mutable and the Canvas camera doesn't reinitialize
+    // when props change, so we explicitly set its position and rotation here.
+    function CameraUpdater({ sceneNumber }: { sceneNumber: number }) {
+        const { camera } = useThree();
+        useEffect(() => {
+            if (sceneNumber > 0) {
+                camera.position.set(-12, 11, 0);
+                camera.rotation.set(-Math.PI / 2, 0, 0);
+            } else {
+                camera.position.set(13.9, 4.82, 7.01);
+                camera.rotation.set(-0.47, 0.44, 0.21);
+            }
+            // Ensure projection matrix is updated when we change the camera
+            camera.updateProjectionMatrix();
+        }, [sceneNumber, camera]);
+
+        return null;
+    }
+
     return (
         <div className="w-full h-[600px]">
-            <Canvas
-                // [-10, 10, 0] [-Math.PI / 2, 0, 0]
-                camera={sceneNumber > 0
-                    ? { position: [-12, 11, 0], rotation: [-Math.PI / 2, 0, 0] } // Top-down view for Scene2
-                    : { position: [13.90, 4.82, 7.01], rotation: [-0.47, 0.44, 0.21] } // Default view for Scene1
-                }
-                shadows
-            >
-                {/* <OrbitControls />
-                <CameraLogger /> */}
+            <Canvas shadows>
+                {/* <OrbitControls /> */}
+                <CameraUpdater sceneNumber={sceneNumber} />
+                {/* <CameraLogger /> */}
                 <>
-                    {sceneNumber == 0 &&
+                    {sceneNumber > 3 &&
                         <>
                             <ambientLight intensity={10} />
-                            <directionalLight position={[10, 8, 8]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-                            <Scene1 maxSpeed={maxSpeed} />
+                            <directionalLight position={[0, 10, 0]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+                            {/* <Scene1 stepNumber={sceneNumber} /> */}
                         </>
                     }
                     {sceneNumber > 0 &&
@@ -521,6 +553,13 @@ export function Scene3D({ maxSpeed, sceneNumber }: ATCProps) {
                             <ambientLight intensity={10} />
                             <directionalLight position={[0, 10, 0]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
                             <Scene2 stepNumber={sceneNumber} />
+                        </>
+                    }
+                    {sceneNumber == 0 &&
+                        <>
+                            <ambientLight intensity={10} />
+                            <directionalLight position={[10, 8, 8]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+                            <Scene1 maxSpeed={maxSpeed} />
                         </>
                     }
                 </>

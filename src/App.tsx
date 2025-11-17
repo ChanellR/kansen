@@ -30,6 +30,10 @@ export default function App() {
       title: "Step 3",
       description: "Leaving block"
     },
+    {
+      title: "Multi-level signaling",
+      description: "Leaving block"
+    },
   ];
 
   useEffect(() => {
@@ -75,21 +79,16 @@ export default function App() {
         background: 'linear-gradient(135deg, #FFE5EC 0%, #FFC2D4 50%, #FFB3C6 100%)'
       }}
     >
-      <div className={`min-h-screen ${layoutMode === 'horizontal' ? 'flex items-center justify-between px-8 lg:px-16 gap-8' : 'flex flex-col px-8 py-8 gap-8'}`}>
+      <div className={`min-h-screen ${layoutMode === 'horizontal' ? 'flex items-center justify-between px-8 lg:px-16 gap-8' : 'flex flex-col px-8 py-16 gap-8'}`}>
         {/* 3D Interactive Scene */}
         <div className={`${layoutMode === 'horizontal' 
           ? 'w-full lg:w-1/2 h-full flex items-center justify-center' 
           : 'w-full flex items-center justify-center'}`}>
-          {/* <InteractiveScene 
-            maxSpeed={maxSpeed}
-            onSpeedChange={setCurrentSpeed}
-          /> */}
           <Scene3D maxSpeed={maxSpeed} sceneNumber={currentStep}/>
         </div>
 
         {/* Right side / Bottom - Controls and Description */}
         <div className={`${layoutMode === 'horizontal' ? 'w-full lg:w-1/2 flex items-center justify-end pr-0 lg:pr-12' : 'w-full flex items-center justify-center'}`}>
-          {/* TODO: Have sceneNumber impact the layout of this div for different scenes */}
           <div className="flex w-full gap-4">
             <TimelineDescription
               title={timelineSteps[currentStep].title}
@@ -97,14 +96,18 @@ export default function App() {
               currentStep={currentStep + 1}
               totalSteps={timelineSteps.length}
             />
-            <SpeedControls
-              maxSpeed={maxSpeed}
-              currentSpeed={currentSpeed}
-              speedHistory={speedHistory}
-              onMaxSpeedChange={setMaxSpeed}
-              animate={true}
-              layoutMode={layoutMode}
-            />
+            { currentStep === 0 &&
+              <>
+                <SpeedControls
+                  maxSpeed={maxSpeed}
+                  currentSpeed={currentSpeed}
+                  speedHistory={speedHistory}
+                  onMaxSpeedChange={setMaxSpeed}
+                  animate={true}
+                  layoutMode={layoutMode}
+                />
+              </>
+            }
           </div>
         </div>
       </div>
@@ -127,7 +130,7 @@ export default function App() {
       </button> */}
 
       {/* Timeline Progress Indicator */}
-      {/* <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3">
+      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3">
         {timelineSteps.map((_, index) => (
           <button
             key={index}
@@ -140,10 +143,10 @@ export default function App() {
             aria-label={`Go to step ${index + 1}`}
           />
         ))}
-      </div> */}
+      </div>
 
       {/* Instructions */}
-      {/* <div 
+      <div 
         className="absolute top-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full"
         style={{
           background: 'linear-gradient(145deg, #FFF5F7, #FFE8EE)',
@@ -154,8 +157,8 @@ export default function App() {
           color: '#D97BA6'
         }}
       >
-        Click and drag the sphere • Use arrow keys to navigate
-      </div> */}
+        Use arrow keys to navigate
+      </div>
       
     </div>
   );
