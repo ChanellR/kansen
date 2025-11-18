@@ -173,7 +173,7 @@ export function Scene3({ stepNumber }: SceneProps3) {
 
         const worldPos = new Vector3();
         train.getWorldPosition(worldPos);
-        const tx = worldPos.x + SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH * 0.4;
+        const tx = worldPos.x;
 
         const nextStates = Array.from({ length: NUM_LIGHTS }, (_, idx) =>
             calculateTrafficLightState(tx, idx + 1, SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH)
