@@ -1,127 +1,198 @@
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { createContext, useContext, useRef, PropsWithChildren, useEffect, useState } from "react";
-import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
-import { Object3D, AnimationAction, AnimationMixer, Mesh, AxesHelper, DoubleSide, Box3, Vector3, PointLight, MeshStandardMaterial, Quaternion } from "three";
+import { useRef, useEffect, useState } from "react";
+import { useGLTF, useAnimations, OrbitControls } from "@react-three/drei";
+import { 
+    Object3D, 
+    AnimationAction, 
+    Mesh, 
+    DoubleSide, 
+    Box3, 
+    Vector3, 
+    PointLight, 
+    Quaternion 
+} from "three";
 import gsap from 'gsap';
-import { fromHalfFloat } from 'three/src/extras/DataUtils.js';
 
+// Reference links for ATC system design:
 // https://ja.wikipedia.org/wiki/%E8%87%AA%E5%8B%95%E5%88%97%E8%BB%8A%E5%88%B6%E5%BE%A1%E8%A3%85%E7%BD%AE#cite_ref-5
 // https://ja.wikipedia.org/wiki/%E8%BB%8C%E9%81%93%E5%9B%9E%E8%B7%AF
 // https://ja.wikipedia.org/wiki/%E6%8C%AF%E5%B9%85%E5%A4%89%E8%AA%BF
 
+// Preload 3D models
 useGLTF.preload("models/shinkansen_with_track.glb");
 useGLTF.preload("models/shinkansen_separated.glb");
 
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const SCENE_CONSTANTS = {
+    RAIL_SEGMENT_LENGTH: 23.7,
+    RAIL_WIDTH: 3.646,
+    INNER_RAIL_WIDTH: 3.03,
+    RAIL_LENGTH: 23.6993,
+    INTRA_WIDTH: 3.507,
+    INTER_WIDTH: 10.309,
+} as const;
+
+const ANIMATION_CONSTANTS = {
+    FLOAT_SPEED: 2.3,
+    FLOAT_AMPLITUDE_XZ: 0.2,
+    FLOAT_AMPLITUDE_Y: 0.2,
+    SPEED_MULTIPLIER: 4.67,
+    BASE_SPEED_DIVISOR: 210 / 5,
+} as const;
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
 interface SceneProps1 {
-    maxSpeed: number
-};
+    maxSpeed: number;
+}
+
+interface SceneProps2 {
+    stepNumber: number;
+}
+
+interface SceneProps3 {
+    stepNumber: number;
+}
+
+interface ATCProps {
+    maxSpeed: number;
+    sceneNumber: number;
+}
+
+type TrafficLightState = 'red' | 'orange' | 'green';
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Enables shadows and double-sided rendering for all meshes in an object
+ */
+function configureMeshVisibility(obj: Object3D, visible = true) {
+    obj.traverse((child: Object3D) => {
+        child.castShadow = true;
+        child.visible = visible;
+        if ((child as Mesh).isMesh && (child as Mesh).material) {
+            const material = (child as Mesh).material;
+            if (Array.isArray(material)) {
+                material.forEach((mat) => {
+                    if (mat) mat.side = DoubleSide;
+                });
+            } else {
+                material.side = DoubleSide;
+            }
+        }
+    });
+}
+
+/**
+ * Adds a point light at the center of a 3D object
+ */
+function addCenterLight(obj: Object3D, intensity = 2, distance = 10, decay = 2): PointLight {
+    const boundingBox = new Box3().setFromObject(obj);
+    const center = new Vector3();
+    boundingBox.getCenter(center);
+    
+    const light = new PointLight(0xffffff, intensity, distance, decay);
+    light.position.copy(center);
+    obj.add(light);
+    return light;
+}
+
+// ============================================================================
+// SCENE 1: FLOATING TRAIN WITH SPEED CONTROL
+// ============================================================================
 
 export function Scene1({ maxSpeed }: SceneProps1) {
     const group = useRef<any>(null);
-    const { animations, scene } = useGLTF("models/shinkansen_with_track.glb");
+    const { animations, scene } = useGLTF("models/shinkansen_separated_3.glb");
     const { actions } = useAnimations(animations, scene);
 
     const sleepersActionRef = useRef<AnimationAction | null>(null);
-    const axleActionsRef = useRef<Array<AnimationAction> | null>(new Array<AnimationAction>());
+    const axleActionsRef = useRef<AnimationAction[]>([]);
 
-    const baseX = 15;
-    const baseY = 0;
-    const baseZ = 0;
-    const train = scene.getObjectByName("train");
+    const BASE_POSITION = { x: 15, y: 0, z: 0 };
+    const empty = scene.getObjectByName("empty");
 
-    // Add floating animation
+    // Floating animation
     useFrame(({ clock }) => {
+        if (!group.current) return;
+        
         const time = clock.getElapsedTime();
-        const floatX = Math.sin(time * 2.3) * 0.2; // Adjust speed and amplitude here
-        const floatY = Math.sin(time * 2) * 0.2; // Adjust speed and amplitude here
-        const floatZ = Math.sin(time * 2.3) * 0.1; // Adjust speed and amplitude here
-        if (group.current) {
-            group.current.position.x = baseX + floatX;
-            group.current.position.y = baseY + floatY;
-            group.current.position.z = baseZ + floatZ;
-        }
+        const floatX = Math.sin(time * ANIMATION_CONSTANTS.FLOAT_SPEED) * ANIMATION_CONSTANTS.FLOAT_AMPLITUDE_XZ;
+        const floatY = Math.sin(time * 2) * ANIMATION_CONSTANTS.FLOAT_AMPLITUDE_Y;
+        const floatZ = Math.sin(time * ANIMATION_CONSTANTS.FLOAT_SPEED) * 0.1;
+        
+        group.current.position.set(
+            BASE_POSITION.x + floatX,
+            BASE_POSITION.y + floatY,
+            BASE_POSITION.z + floatZ
+        );
     });
 
+    // Initialize scene objects and animations
     useEffect(() => {
-        if (train) {
-            train.traverse((obj: Object3D) => {
-                obj.castShadow = true;
-                // Make train render double-sided
-                if ((obj as Mesh).isMesh && (obj as Mesh).material) {
-                    const material = (obj as Mesh).material;
-                    if (Array.isArray(material)) {
-                        material.forEach((mat) => {
-                            if (mat) mat.side = DoubleSide;
-                        });
-                    } else {
-                        material.side = DoubleSide;
-                    }
-                }
-            });
+        const addedObjects: Object3D[] = [];
 
-            // Calculate the bounding box of the train
-            const boundingBox = new Box3().setFromObject(train);
-            const center = new Vector3();
-            boundingBox.getCenter(center);
-
-            // Add a point light at the center of the train
-            const light = new PointLight(0xffffff, 2, 10, 2);
-            light.position.copy(center);
-            train.add(light);
+        if (empty) {
+            configureMeshVisibility(empty, true);
+            const light = addCenterLight(empty);
+            addedObjects.push(light);
         }
 
         if (group.current) {
-            // group.current.position.x = 15; // Move group forward by x
-            group.current.scale.z = -1; // Flip the group across the z-axis
+            group.current.scale.z = -1;
         }
 
         if (!actions) return;
+        
         const played: AnimationAction[] = [];
         Object.entries(actions).forEach(([key, action]) => {
             if (action) {
                 action.reset();
                 action.play();
+                
                 if (key === "sleepersAction") {
                     sleepersActionRef.current = action;
                 } else if (key.startsWith("axleAction")) {
-                    axleActionsRef.current?.push(action);
+                    axleActionsRef.current.push(action);
                 }
                 played.push(action);
             }
         });
+        
         return () => {
             played.forEach((a) => a.stop());
+            addedObjects.forEach((obj) => scene.remove(obj));
+            if (group.current) group.current.position.set(0, 0, 0);
         };
-    }, [actions]);
+    }, [actions, empty, scene]);
 
+    // Update animation speeds based on maxSpeed
     useEffect(() => {
+        const speedScale = maxSpeed / ANIMATION_CONSTANTS.BASE_SPEED_DIVISOR;
+        
         if (sleepersActionRef.current) {
-            sleepersActionRef.current.setEffectiveTimeScale((maxSpeed / (210 / 5)) * 4.67);
+            sleepersActionRef.current.setEffectiveTimeScale(speedScale * ANIMATION_CONSTANTS.SPEED_MULTIPLIER);
         }
-        if (axleActionsRef.current) {
-            axleActionsRef.current.forEach((action) => action.setEffectiveTimeScale((maxSpeed / (210 / 5))));
-        }
+        
+        axleActionsRef.current.forEach((action) => {
+            action.setEffectiveTimeScale(speedScale);
+        });
     }, [maxSpeed]);
 
-    return (
-        <>
-            {/* Render the train and add a point light inside it */}
-            <primitive ref={group} object={scene} />
-            {/* <mesh position={[3, -0.8, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-                <planeGeometry args={[30, 10]} />
-                <meshStandardMaterial color="grey" />
-            </mesh> */}
-            {/* Global axes at world origin */}
-            {/* <primitive object={new AxesHelper(5)} position={[0, 0, 0]} /> */}
-        </>
-    );
+    return <primitive ref={group} object={scene} />;
 }
 
-interface SceneProps2 {
-    stepNumber: number
-};
+// ============================================================================
+// CIRCUIT VISUALIZATION COMPONENTS
+// ============================================================================
 
-// Circuit visualization components
 function Battery({ position }: { position: [number, number, number] }) {
     return (
         <group position={position} rotation={[-Math.PI / 2, 0, 0]}>
@@ -158,76 +229,126 @@ function Battery({ position }: { position: [number, number, number] }) {
     );
 }
 
-function TrafficLight({ position, isGreen }: { position: [number, number, number], isGreen: boolean }) {
+function TrafficLight({ position, isGreen }: { position: [number, number, number]; isGreen: boolean }) {
+    const redColor = isGreen ? "#330000" : "#ff0000";
+    const greenColor = isGreen ? "#00ff00" : "#003300";
+    const redIntensity = isGreen ? 0 : 0.5;
+    const greenIntensity = isGreen ? 0.5 : 0;
+
     return (
         <group position={position} rotation={[-Math.PI / 2, 0, 0]}>
-            {/* Traffic light housing */}
             <mesh position={[0, 0, 0]}>
                 <boxGeometry args={[0.5, 1.5, 0.4]} />
                 <meshStandardMaterial color="#1a1a1a" />
             </mesh>
-            {/* Red light */}
             <mesh position={[0, 0.4, 0.21]}>
                 <circleGeometry args={[0.18, 16]} />
                 <meshStandardMaterial
-                    color={isGreen ? "#330000" : "#ff0000"}
+                    color={redColor}
                     emissive={isGreen ? "#000000" : "#ff0000"}
-                    emissiveIntensity={isGreen ? 0 : 0.5}
+                    emissiveIntensity={redIntensity}
                 />
             </mesh>
-            {/* Green light */}
             <mesh position={[0, -0.4, 0.21]}>
                 <circleGeometry args={[0.18, 16]} />
                 <meshStandardMaterial
-                    color={isGreen ? "#00ff00" : "#003300"}
+                    color={greenColor}
                     emissive={isGreen ? "#00ff00" : "#000000"}
-                    emissiveIntensity={isGreen ? 0.5 : 0}
+                    emissiveIntensity={greenIntensity}
                 />
             </mesh>
         </group>
     );
 }
 
-function TrafficLightThreeColor({ position, state = 'green' }: { position: [number, number, number], state?: 'red' | 'orange' | 'green' }) {
+function TrafficLightThreeColor({ 
+    position, 
+    state = 'green' 
+}: { 
+    position: [number, number, number]; 
+    state?: TrafficLightState;
+}) {
+    const getLightConfig = (lightColor: TrafficLightState) => {
+        const isActive = state === lightColor;
+        const colors = {
+            red: { on: "#ff0000", off: "#330000" },
+            orange: { on: "#ff9900", off: "#331a00" },
+            green: { on: "#00ff00", off: "#003300" },
+        };
+        
+        return {
+            color: isActive ? colors[lightColor].on : colors[lightColor].off,
+            emissive: isActive ? colors[lightColor].on : "#000000",
+            intensity: isActive ? 0.5 : 0,
+        };
+    };
+
     return (
         <group position={position} rotation={[0, -Math.PI / 2, Math.PI]}>
-            {/* Traffic light housing */}
             <mesh position={[0, 0, 0]}>
                 <boxGeometry args={[0.5, 2.0, 0.4]} />
                 <meshStandardMaterial color="#1a1a1a" />
             </mesh>
-            {/* Red light */}
-            <mesh position={[0, 0.6, 0.21]}>
-                <circleGeometry args={[0.18, 16]} />
-                <meshStandardMaterial
-                    color={state === 'red' ? "#ff0000" : "#330000"}
-                    emissive={state === 'red' ? "#ff0000" : "#000000"}
-                    emissiveIntensity={state === 'red' ? 0.5 : 0}
-                />
-            </mesh>
-            {/* Orange light */}
-            <mesh position={[0, 0, 0.21]}>
-                <circleGeometry args={[0.18, 16]} />
-                <meshStandardMaterial
-                    color={state === 'orange' ? "#ff9900" : "#331a00"}
-                    emissive={state === 'orange' ? "#ff9900" : "#000000"}
-                    emissiveIntensity={state === 'orange' ? 0.5 : 0}
-                />
-            </mesh>
-            {/* Green light */}
-            <mesh position={[0, -0.6, 0.21]}>
-                <circleGeometry args={[0.18, 16]} />
-                <meshStandardMaterial
-                    color={state === 'green' ? "#00ff00" : "#003300"}
-                    emissive={state === 'green' ? "#00ff00" : "#000000"}
-                    emissiveIntensity={state === 'green' ? 0.5 : 0}
-                />
-            </mesh>
+            {(['red', 'orange', 'green'] as TrafficLightState[]).map((color, idx) => {
+                const yPos = 0.6 - idx * 0.6;
+                const config = getLightConfig(color);
+                return (
+                    <mesh key={color} position={[0, yPos, 0.21]}>
+                        <circleGeometry args={[0.18, 16]} />
+                        <meshStandardMaterial
+                            color={config.color}
+                            emissive={config.emissive}
+                            emissiveIntensity={config.intensity}
+                        />
+                    </mesh>
+                );
+            })}
         </group>
     );
 }
 
-function CircuitWire({ start, end, color = "#ffaa00", splitAtX, batteryX, onColor = "#ff6600", offColor = "#333333", active = true }: { start: [number, number, number], end: [number, number, number], color?: string, splitAtX?: number | null, batteryX?: number, onColor?: string, offColor?: string, active?: boolean }) {
+/**
+ * Computes split point along a wire at a given X coordinate
+ */
+function computeWireSplitPoint(
+    start: [number, number, number],
+    end: [number, number, number],
+    splitX: number
+): [number, number, number] | null {
+    const sx = start[0];
+    const ex = end[0];
+    
+    if (Math.abs(ex - sx) < 1e-6) return null;
+    
+    const t = (splitX - sx) / (ex - sx);
+    if (t <= 0 || t >= 1) return null;
+    
+    return [
+        start[0] + (end[0] - start[0]) * t,
+        start[1] + (end[1] - start[1]) * t,
+        start[2] + (end[2] - start[2]) * t
+    ];
+}
+
+function CircuitWire({ 
+    start, 
+    end, 
+    color = "#ffaa00", 
+    splitAtX, 
+    batteryX, 
+    onColor = "#ff6600", 
+    offColor = "#333333", 
+    active = true 
+}: { 
+    start: [number, number, number]; 
+    end: [number, number, number]; 
+    color?: string; 
+    splitAtX?: number | null; 
+    batteryX?: number; 
+    onColor?: string; 
+    offColor?: string; 
+    active?: boolean;
+}) {
     const direction = new Vector3(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
     const length = direction.length();
     const midpoint: [number, number, number] = [
@@ -236,58 +357,36 @@ function CircuitWire({ start, end, color = "#ffaa00", splitAtX, batteryX, onColo
         (start[2] + end[2]) / 2
     ];
 
-    // splitAtX = Math.max(splitAtX ?? -Infinity, batteryX ?? -Infinity, -24);
-    // splitAtX = 10;
-    // if (splitAtX && batteryX) {
-    //     if (splitAtX < batteryX) {
-    //         splitAtX = 10;
-    //     }
-    // }
-
     const wireRef = useRef<Mesh | null>(null);
     const wireRef2 = useRef<Mesh | null>(null);
 
+    // Apply rotation to align cylinder with wire direction
     useEffect(() => {
         if (!wireRef.current) return;
-        // Cylinder is aligned on Y by default. Compute a quaternion which rotates Y to the direction.
+        
         const yAxis = new Vector3(0, 1, 0);
         const quaternion = new Quaternion().setFromUnitVectors(yAxis, direction.clone().normalize());
         wireRef.current.setRotationFromQuaternion(quaternion);
 
-        // If we have a second segment (split), compute and apply its rotation too.
-        if (wireRef2.current && typeof (splitAtX) === 'number') {
-            const computeSplitPoint = (splitX: number) => {
-                const sx = start[0];
-                const ex = end[0];
-                if (Math.abs(ex - sx) < 1e-6) return null;
-                const t = (splitX - sx) / (ex - sx);
-                if (t <= 0 || t >= 1) return null;
-                return [start[0] + (end[0] - start[0]) * t, start[1] + (end[1] - start[1]) * t, start[2] + (end[2] - start[2]) * t];
-            };
-            const splitPoint = computeSplitPoint(splitAtX);
+        if (wireRef2.current && typeof splitAtX === 'number') {
+            const splitPoint = computeWireSplitPoint(start, end, splitAtX);
             if (splitPoint) {
-                const dir2 = new Vector3(end[0] - splitPoint[0], end[1] - splitPoint[1], end[2] - splitPoint[2]);
+                const dir2 = new Vector3(
+                    end[0] - splitPoint[0],
+                    end[1] - splitPoint[1],
+                    end[2] - splitPoint[2]
+                );
                 const quaternion2 = new Quaternion().setFromUnitVectors(yAxis, dir2.normalize());
                 wireRef2.current.setRotationFromQuaternion(quaternion2);
             }
         }
-    }, [start, end, splitAtX]);
+    }, [start, end, splitAtX, direction]);
 
-    // Helper to compute an intersection along X-axis - returns world coords for t
-    const computeSplitPoint = (splitX: number) => {
-        const sx = start[0];
-        const ex = end[0];
-        if (Math.abs(ex - sx) < 1e-6) return null; // not an X-aligned segment
-        const t = (splitX - sx) / (ex - sx);
-        if (t <= 0 || t >= 1) return null; // not in range
-        return [start[0] + (end[0] - start[0]) * t, start[1] + (end[1] - start[1]) * t, start[2] + (end[2] - start[2]) * t];
-    };
-
-    // If a split is requested and this segment is aligned on X, render two segments
+    // Render split wire if splitAtX is provided
     if (typeof splitAtX === 'number') {
-        const splitPoint = computeSplitPoint(splitAtX);
+        const splitPoint = computeWireSplitPoint(start, end, splitAtX);
+        
         if (splitPoint) {
-            // Compute first segment (start -> splitPoint)
             const mid1: [number, number, number] = [
                 (start[0] + splitPoint[0]) / 2,
                 (start[1] + splitPoint[1]) / 2,
@@ -299,16 +398,21 @@ function CircuitWire({ start, end, color = "#ffaa00", splitAtX, batteryX, onColo
                 (end[2] + splitPoint[2]) / 2,
             ];
 
-            const len1 = new Vector3(splitPoint[0] - start[0], splitPoint[1] - start[1], splitPoint[2] - start[2]).length();
-            const len2 = new Vector3(end[0] - splitPoint[0], end[1] - splitPoint[1], end[2] - splitPoint[2]).length();
+            const len1 = new Vector3(
+                splitPoint[0] - start[0],
+                splitPoint[1] - start[1],
+                splitPoint[2] - start[2]
+            ).length();
+            const len2 = new Vector3(
+                end[0] - splitPoint[0],
+                end[1] - splitPoint[1],
+                end[2] - splitPoint[2]
+            ).length();
 
-            // Determine which side is closer to the battery (if provided) and assign colors
             const batterySideStart = typeof batteryX === 'number'
                 ? Math.abs(start[0] - batteryX) < Math.abs(end[0] - batteryX)
                 : true;
 
-            // If the axle short is on this segment, the battery side should be 'on'
-            // For generality, we'll color the battery side with onColor and the other with offColor
             const color1 = active ? (batterySideStart ? onColor : offColor) : onColor;
             const color2 = active ? (batterySideStart ? offColor : onColor) : onColor;
 
@@ -336,79 +440,82 @@ function CircuitWire({ start, end, color = "#ffaa00", splitAtX, batteryX, onColo
     );
 }
 
+// ============================================================================
+// SCENE 2: TRACK CIRCUIT DEMONSTRATION
+// ============================================================================
+
 export function Scene2({ stepNumber }: SceneProps2) {
     const group = useRef<any>(null);
-    const { animations, scene } = useGLTF("models/shinkansen_separated.glb");
+    const { animations, scene } = useGLTF("models/shinkansen_separated_3.glb");
     const { actions } = useAnimations(animations, scene);
     
-    const empty = scene.getObjectByName("TrainHullHome");
+    const empty = scene.getObjectByName("empty");
     const rails = scene.getObjectByName("rails");
+    const axleObjectRef = useRef<Object3D | null>(null);
+    
+    const [trainCenterX, setTrainCenterX] = useState<number | null>(null);
+    const [isTrafficOccupied, setIsTrafficOccupied] = useState(false);
 
+    const TRAFFIC_LIGHT_POS_X = -21;
+    const INNER_WIDTH = 3.03;
+
+    // Initialize scene: add rail copies and configure train visibility
     useEffect(() => {
+        const addedObjects: Object3D[] = [];
 
+        // Add rail copies on both sides
         if (rails) {
             const [rails_copy1, rails_copy2] = [rails.clone(), rails.clone()];
             rails_copy1.position.x = 23.699;
-            scene.add(rails_copy1);
             rails_copy2.position.x = -23.699;
-            scene.add(rails_copy2);
+            scene.add(rails_copy1, rails_copy2);
+            addedObjects.push(rails_copy1, rails_copy2);
         }
 
+        // Show only axles, hide train body
         if (empty) {
             empty.traverse((obj: Object3D) => {
+                // obj.visible = true;
                 // Make axles visible but train body invisible
-                if (obj.name.toLowerCase().includes("axle")) {
-                    obj.castShadow = true;
-                } else if ((obj as Mesh).isMesh) {
-                    // Hide the train body meshes
+                if (obj.name.toLowerCase().includes("train")) {
                     obj.visible = false;
+                } else {
+                    obj.visible = true;
+                    obj.castShadow = true;
                 }
+
             });
         }
 
         if (group.current) {
-            group.current.position.x = 0;
-            group.current.position.y = 0;
-            group.current.position.z = 0;
-            group.current.scale.z = -1; // Flip across z-axis
+            group.current.position.set(0, 0, 0);
+            group.current.scale.z = -1;
         }
 
-        if (!actions) return;
-        const played: AnimationAction[] = [];
-        Object.entries(actions).forEach(([key, action]) => {
-            if (action) {
-                // BUG: The axle animations are broken because of train parent removal
-                // if (key.startsWith("axleAction")) {
-                //     action.reset();
-                //     action.play();
-                //     played.push(action);
-                // }
-            }
-        });
-
         return () => {
-            played.forEach((a) => a.stop());
+            addedObjects.forEach((obj) => scene.remove(obj));
+            if (empty) {
+                empty.position.set(0, 0, 0);
+                empty.traverse((obj : Object3D) => {
+                    obj.visible = true;
+                });
+            }
         };
+    }, [empty, rails, scene]);
 
-    }, [actions]);
-
-    // Track axle objects and their world X positions so we can short circuit the rails
-    const axleObjectRef = useRef<Object3D | null>(null);
-    const [trainCenterX, setTrainCenterX] = useState<number | null>(null);
-
+    // Find axle object for tracking
     useEffect(() => {
         axleObjectRef.current = null;
         if (!empty) return;
+        
         empty.traverse((obj: Object3D) => {
-            if (obj.name && obj.name.toLowerCase().includes("axle")) {
+            if (obj.name?.toLowerCase() === "axle") {
                 axleObjectRef.current = obj;
-                return;
             }
         });
     }, [empty]);
 
-    const [isTrafficOccupied, setIsTrafficOccupied] = useState(false);
-
+    // Track train position and update circuit state
     useFrame(() => {
         if (!axleObjectRef.current) {
             setTrainCenterX(null);
@@ -416,80 +523,63 @@ export function Scene2({ stepNumber }: SceneProps2) {
             return;
         }
         
-        const intraWidth = 3.507;
-        const interWidth = 10.309;
-        
         const worldPos = new Vector3();
         axleObjectRef.current.getWorldPosition(worldPos);
         const x = worldPos.x;
+        
         let xPos = null;
-        if (x < trafficLightPosX ) {
-            xPos = (null);
-        } else if (x <= 0) {
-            xPos = (x);
-        } else if (x <= intraWidth) {
-            xPos = (x - intraWidth);
-        } else if (x <= intraWidth + interWidth) {
-            xPos = (x - (intraWidth + interWidth));
-        } else if (x <= intraWidth * 2 + interWidth) {
-            xPos = (x - (intraWidth * 2 + interWidth));
-        } else {
-            xPos = (null);
+        if (x >= TRAFFIC_LIGHT_POS_X && x <= SCENE_CONSTANTS.INTRA_WIDTH * 2 + SCENE_CONSTANTS.INTER_WIDTH) {
+            if (x <= 0) {
+                xPos = x;
+            } else if (x <= SCENE_CONSTANTS.INTRA_WIDTH) {
+                xPos = x - SCENE_CONSTANTS.INTRA_WIDTH;
+            } else if (x <= SCENE_CONSTANTS.INTRA_WIDTH + SCENE_CONSTANTS.INTER_WIDTH) {
+                xPos = x - (SCENE_CONSTANTS.INTRA_WIDTH + SCENE_CONSTANTS.INTER_WIDTH);
+            } else {
+                xPos = x - (SCENE_CONSTANTS.INTRA_WIDTH * 2 + SCENE_CONSTANTS.INTER_WIDTH);
+            }
         }
-        setTrainCenterX(xPos ? xPos - 2 : null);
-        setIsTrafficOccupied(trainCenterX !== null);
+        
+        setTrainCenterX(xPos);
+        setIsTrafficOccupied(xPos !== null);
     });
 
     // GSAP animations based on stepNumber
     useEffect(() => {
         if (!empty) return;
 
-        // Kill any existing animations on the empty object
         gsap.killTweensOf(empty.position);
 
-        if (stepNumber === 1) {
-            // Step 1: Position at -30
-            gsap.set(empty.position, { x: -25 });
-        } else if (stepNumber === 2) {
-            // Step 2: Loop from -30 to 0
-            gsap.set(empty.position, { x: -25 });
-            gsap.to(empty.position, {
-                x: -0.1,
-                duration: 4,
-                ease: "power1.inOut",
-                repeat: -1,
-                repeatDelay: 1,
-                yoyo: false,
-                onRepeat: () => {
-                    gsap.set(empty.position, { x: -30 });
-                }
-            });
-        } else if (stepNumber === 3) {
-            // Step 3: Translate from 0 to 30
-            gsap.set(empty.position, { x: -0.1 });
-            gsap.to(empty.position, {
-                x: 35,
-                duration: 4,
-                ease: "power1.inOut",
-                repeat: -1,
-                repeatDelay: 1,
-                yoyo: false,
-                onRepeat: () => {
-                    gsap.set(empty.position, { x: 0 });
-                }
-            });
-        }
-
-        // Cleanup function to kill animations when component unmounts or stepNumber changes
-        return () => {
-            gsap.killTweensOf(empty.position);
+        const animations = {
+            1: () => gsap.set(empty.position, { x: -25 }),
+            2: () => {
+                gsap.set(empty.position, { x: -25 });
+                gsap.to(empty.position, {
+                    x: -0.1,
+                    duration: 4,
+                    ease: "power1.inOut",
+                    repeat: -1,
+                    repeatDelay: 1,
+                    onRepeat: () => { gsap.set(empty.position, { x: -30 }); }
+                });
+            },
+            3: () => {
+                gsap.set(empty.position, { x: -0.1 });
+                gsap.to(empty.position, {
+                    x: 35,
+                    duration: 4,
+                    ease: "power1.inOut",
+                    repeat: -1,
+                    repeatDelay: 1,
+                    onRepeat: () => { gsap.set(empty.position, { x: 0 }); }
+                });
+            },
         };
-    }, [stepNumber, empty]);
 
-    const railWidth = 3.646;
-    const innerWidth = 3.03;
-    const railLength = 23.6993;
-    const trafficLightPosX = -21;
+        animations[stepNumber as keyof typeof animations]?.();
+
+        return () => gsap.killTweensOf(empty.position);
+    }, [stepNumber, empty]);
 
     return (
         <>
@@ -499,174 +589,176 @@ export function Scene2({ stepNumber }: SceneProps2) {
                 <meshStandardMaterial color="grey" />
             </mesh>
 
-            {/* Circuit visualization */}
-            {/* Battery on the right */}
             <Battery position={[0, 1, 0]} />
+            <TrafficLight position={[TRAFFIC_LIGHT_POS_X, 1, 3]} isGreen={!isTrafficOccupied} />
 
-            {/* Traffic light on the left: green if an axle is in the segment between traffic light and battery */}
-            <TrafficLight position={[trafficLightPosX, 1, 3]} isGreen={isTrafficOccupied} />
-
-            {/* Circuit wires - creating a loop */}
-            {/* From battery positive to right rail */}
-            <CircuitWire start={[0, 1, innerWidth / 2]} end={[0, 1, -innerWidth / 2]} color="#ff6600" />
-
-            {/* Right rail segment (represented as wire) - split where the train is (short circuit) */}
-            {/* Check if any axle sits on the right rail segment to decide whether it's shorted */}
-            {
-                <CircuitWire start={[0, 1, -innerWidth / 2]} end={[trafficLightPosX, 1, -innerWidth / 2]} splitAtX={trainCenterX ?? undefined} batteryX={0} onColor="#ff6600" offColor="#333333" active={trainCenterX == undefined|| isTrafficOccupied} />
-            }
-
-            {/* From left rail to traffic light */}
-            <CircuitWire start={[trafficLightPosX, 1, -innerWidth / 2]} end={[trafficLightPosX, 1, 3]} color="#ff6600" active={!isTrafficOccupied} />
-            {/* Outside of the traffic light */}
-            <CircuitWire start={[trafficLightPosX, 1, 3]} end={[trafficLightPosX + 0.5, 1, 3]} color="#ff6600" active={!isTrafficOccupied} />
-            {/* From traffic light to rail  */}
-            <CircuitWire start={[trafficLightPosX + 0.5, 1, 3]} end={[trafficLightPosX + 0.5, 1, innerWidth / 2]} color="#ff6600" active={!isTrafficOccupied} />
-
-            {/* Along bottom rail - split by train center if it lies on this long segment */}
-            {
-                <CircuitWire start={[trafficLightPosX + 0.5, 1, innerWidth / 2]} end={[0, 1, innerWidth / 2]} splitAtX={trainCenterX ?? undefined} batteryX={0} onColor="#ff6600" offColor="#333333" active={trainCenterX == undefined || isTrafficOccupied} />
-            }
-
-            {/* Global axes at world origin */}
-            {/* <primitive object={new AxesHelper(20)} position={[0, 0, 0]} /> */}
+            {/* Circuit wires */}
+            <CircuitWire 
+                start={[0, 1, INNER_WIDTH / 2]} 
+                end={[0, 1, -INNER_WIDTH / 2]} 
+                color="#ff6600" 
+            />
+            <CircuitWire 
+                start={[0, 1, -INNER_WIDTH / 2]} 
+                end={[TRAFFIC_LIGHT_POS_X, 1, -INNER_WIDTH / 2]} 
+                splitAtX={trainCenterX ?? undefined} 
+                batteryX={0} 
+                onColor="#ff6600" 
+                offColor="#333333" 
+                active={!trainCenterX || isTrafficOccupied} 
+            />
+            <CircuitWire 
+                start={[TRAFFIC_LIGHT_POS_X, 1, -INNER_WIDTH / 2]} 
+                end={[TRAFFIC_LIGHT_POS_X, 1, 3]} 
+                color="#ff6600" 
+                active={!isTrafficOccupied} 
+            />
+            <CircuitWire 
+                start={[TRAFFIC_LIGHT_POS_X, 1, 3]} 
+                end={[TRAFFIC_LIGHT_POS_X + 0.5, 1, 3]} 
+                color="#ff6600" 
+                active={!isTrafficOccupied} 
+            />
+            <CircuitWire 
+                start={[TRAFFIC_LIGHT_POS_X + 0.5, 1, 3]} 
+                end={[TRAFFIC_LIGHT_POS_X + 0.5, 1, INNER_WIDTH / 2]} 
+                color="#ff6600" 
+                active={!isTrafficOccupied} 
+            />
+            <CircuitWire 
+                start={[TRAFFIC_LIGHT_POS_X + 0.5, 1, INNER_WIDTH / 2]} 
+                end={[0, 1, INNER_WIDTH / 2]} 
+                splitAtX={trainCenterX ?? undefined} 
+                batteryX={0} 
+                onColor="#ff6600" 
+                offColor="#333333" 
+                active={!trainCenterX || isTrafficOccupied} 
+            />
         </>
     );
 }
 
-interface SceneProps3 {
-    stepNumber: number;
+// ============================================================================
+// SCENE 3: MULTIPLE TRACK CIRCUITS
+// ============================================================================
+
+/**
+ * Calculates traffic light state based on train position
+ */
+function calculateTrafficLightState(
+    trainX: number,
+    lightIndex: number,
+    railSegmentLength: number
+): TrafficLightState {
+    const startX = lightIndex * railSegmentLength;
+    const endX = startX + railSegmentLength;
+
+    if (trainX >= startX && trainX < endX) {
+        return 'red';
+    } else if (trainX >= endX && trainX < endX + railSegmentLength) {
+        return 'orange';
+    }
+    return 'green';
 }
 
 export function Scene3({ stepNumber }: SceneProps3) {
     const group = useRef<any>(null);
-    const { animations, scene } = useGLTF("models/shinkansen_with_track.glb");
+    const { animations, scene } = useGLTF("models/shinkansen_separated_3.glb");
     const { actions } = useAnimations(animations, scene);
 
     const train = scene.getObjectByName("train");
     const rails = scene.getObjectByName("rails");
+    const empty = scene.getObjectByName("empty");
 
+    const NUM_LIGHTS = 4;
+    const [trafficLightStates, setTrafficLightStates] = useState<TrafficLightState[]>(
+        Array(NUM_LIGHTS).fill('green')
+    );
+
+    // Initialize scene: create rail segments and configure train
     useEffect(() => {
+        const addedObjects: Object3D[] = [];
+
         if (train) {
-            train.traverse((obj: Object3D) => {
-                obj.castShadow = true;
-                if ((obj as Mesh).isMesh && (obj as Mesh).material) {
-                    const material = (obj as Mesh).material;
-                    if (Array.isArray(material)) {
-                        material.forEach((mat) => {
-                            if (mat) mat.side = DoubleSide;
-                        });
-                    } else {
-                        material.side = DoubleSide;
-                    }
-                }
-            });
+            configureMeshVisibility(train, true);
         }
 
-        // Create 3 additional rail segments (total of 4)
+        // Create additional rail segments (4 total)
         if (rails) {
-            const railSegmentLength = 23.7; // Approximate length based on Scene2
-            
             for (let i = 1; i < 5; i++) {
                 const railsCopy = rails.clone();
-                railsCopy.position.x = i * railSegmentLength;
+                railsCopy.position.x = i * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH;
                 scene.add(railsCopy);
+                addedObjects.push(railsCopy);
             }
         }
 
         if (group.current) {
-            group.current.scale.z = -1; // Flip across z-axis
+            group.current.scale.z = -1;
             group.current.position.y = 0;
         }
 
-        if (!actions) return;
-        const played: AnimationAction[] = [];
-        Object.entries(actions).forEach(([key, action]) => {
-            if (action) {       
-                if (key.startsWith("axleAction")) {
+        // Play axle animations
+        if (actions) {
+            const played: AnimationAction[] = [];
+            Object.entries(actions).forEach(([key, action]) => {
+                if (action && key.startsWith("axleAction")) {
                     action.reset();
                     action.play();
                     played.push(action);
                 }
-            }
-        });
+            });
+
+            return () => {
+                played.forEach((a) => a.stop());
+                addedObjects.forEach((obj) => scene.remove(obj));
+                if (empty) empty.position.set(0, 0, 0);
+            };
+        }
 
         return () => {
-            played.forEach((a) => a.stop());
+            addedObjects.forEach((obj) => scene.remove(obj));
         };
-    }, [actions]);
+    }, [actions, train, rails, scene]);
 
-    // Animate train position based on stepNumber
+    // Animate train position
     useEffect(() => {
-        if (!train) return;
+        if (!empty) return;
 
-        gsap.killTweensOf(train.position);
+        gsap.killTweensOf(empty.position);
 
         if (stepNumber === 1) {
-            // Start at beginning
-            gsap.set(train.position, { x: -5 });
+            gsap.set(empty.position, { x: -2 });
         } else if (stepNumber === 2) {
-            // Move through all 4 rail segments
-            gsap.set(train.position, { x: -5 });
-            gsap.to(train.position, {
-                x: 90, // 4 segments * ~23.7 length
-                duration: 8,
+            gsap.set(empty.position, { x: -2 });
+            gsap.to(empty.position, {
+                x: 90,
+                duration: 6,
                 ease: "linear",
                 repeat: -1,
                 repeatDelay: 1,
-                onRepeat: () => {
-                    gsap.set(train.position, { x: 0 });
-                }
+                onRepeat: () => { gsap.set(empty.position, { x: 0 }); }
             });
         }
 
-        return () => {
-            gsap.killTweensOf(train.position);
-        };
-    }, [stepNumber, train]);
+        return () => gsap.killTweensOf(empty.position);
+    }, [stepNumber, empty]);
 
-    const railSegmentLength = 23.7;
-    const numLights = 4;
-    const warningDistance = railSegmentLength * 0.4; // how far ahead to show orange
-
-    const [trafficLightStates, setTrafficLightStates] = useState<Array<'red' | 'orange' | 'green'>>(Array(numLights).fill('green'));
-
-    // Update traffic light states based on train location in world space
+    // Update traffic light states based on train position
     useFrame(() => {
         if (!train) return;
+        
         const worldPos = new Vector3();
         train.getWorldPosition(worldPos);
-        const tx = worldPos.x + railSegmentLength * 0.4;
+        const tx = worldPos.x + SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH * 0.4;
 
-        // Compute target state for each light
-        const nextStates: Array<'red' | 'orange' | 'green'> = [];
-        for (let idx = 0; idx < numLights; idx++) {
-            // mapping: lights positioned at i*railSegmentLength where i is 1..numLights
-            const lightIndex = idx + 1;
-            const startX = lightIndex * railSegmentLength;
-            const endX = startX + railSegmentLength;
+        const nextStates = Array.from({ length: NUM_LIGHTS }, (_, idx) => 
+            calculateTrafficLightState(tx, idx + 1, SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH)
+        );
 
-            // If train is in the rail segment ahead of the light -> red
-            if (tx >= startX && tx < endX) {
-                nextStates.push('red');
-            } else if (tx >= endX && tx < endX + railSegmentLength) {
-                // Train is in next segment
-                nextStates.push('orange');
-            } else {
-                // Otherwise clear -> green
-                nextStates.push('green');
-            }
-        }
-
-        // Only update React state when changed
-        let changed = false;
-        for (let i = 0; i < numLights; i++) {
-            if (trafficLightStates[i] !== nextStates[i]) {
-                changed = true;
-                break;
-            }
-        }
-        if (changed) {
+        // Only update state if changed
+        const hasChanged = nextStates.some((state, i) => state !== trafficLightStates[i]);
+        if (hasChanged) {
             setTrafficLightStates(nextStates);
         }
     });
@@ -680,97 +772,142 @@ export function Scene3({ stepNumber }: SceneProps3) {
             </mesh>
 
             {/* Traffic lights at the beginning of each rail segment */}
-            {[1, 2, 3, 4].map((i, idx) => (
-                <group key={i}>
-                    <TrafficLightThreeColor 
-                        position={[i * railSegmentLength, 3, 3]} 
-                        state={trafficLightStates[idx]}
-                    />
-                    {/* Pole underneath the traffic light */}
-                    <mesh position={[i * railSegmentLength, 1.5, 3]} rotation={[0, 0, 0]}>
-                        <cylinderGeometry args={[0.1, 0.1, 3, 16]} />
-                        <meshStandardMaterial color="#333333" />
-                    </mesh>
-                </group>
-            ))}
-
-            {/* Global axes at world origin */}
-            {/* <primitive object={new AxesHelper(20)} position={[0, 0, 0]} /> */}
+            {Array.from({ length: NUM_LIGHTS }, (_, i) => {
+                const lightIndex = i + 1;
+                return (
+                    <group key={lightIndex}>
+                        <TrafficLightThreeColor 
+                            position={[
+                                lightIndex * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH, 
+                                3, 
+                                3
+                            ]} 
+                            state={trafficLightStates[i]}
+                        />
+                        <mesh 
+                            position={[
+                                lightIndex * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH, 
+                                1.5, 
+                                3
+                            ]} 
+                            rotation={[0, 0, 0]}
+                        >
+                            <cylinderGeometry args={[0.1, 0.1, 3, 16]} />
+                            <meshStandardMaterial color="#333333" />
+                        </mesh>
+                    </group>
+                );
+            })}
         </>
     );
 }
 
-interface ATCProps {
-    maxSpeed: number;
-    sceneNumber: number;
+// ============================================================================
+// CAMERA CONTROL COMPONENTS
+// ============================================================================
+
+/**
+ * Camera position configurations for each scene
+ */
+const CAMERA_POSITIONS = {
+    scene1: {
+        position: [13.9, 4.82, 7.01] as [number, number, number],
+        rotation: [-0.47, 0.44, 0.21] as [number, number, number],
+    },
+    scene2and3: {
+        position: [-12, 11, 0] as [number, number, number],
+        rotation: [-Math.PI / 2, 0, 0] as [number, number, number],
+    },
+    scene4plus: {
+        position: [16.32, 4.13, 5.99] as [number, number, number],
+        rotation: [-0.00, -0.57, -0.00] as [number, number, number],
+    },
+} as const;
+
+function CameraUpdater({ sceneNumber }: { sceneNumber: number }) {
+    const { camera } = useThree();
+    
+    useEffect(() => {
+        let config;
+        if (sceneNumber > 3) {
+            config = CAMERA_POSITIONS.scene4plus;
+        } else if (sceneNumber > 0) {
+            config = CAMERA_POSITIONS.scene2and3;
+        } else {
+            config = CAMERA_POSITIONS.scene1;
+        }
+
+        camera.position.set(...config.position);
+        camera.rotation.set(...config.rotation);
+        camera.updateProjectionMatrix();
+    }, [sceneNumber, camera]);
+
+    return null;
 }
 
+// ============================================================================
+// MAIN SCENE CONTAINER
+// ============================================================================
+
+// ============================================================================
+// MAIN SCENE CONTAINER
+// ============================================================================
+
 export function Scene3D({ maxSpeed, sceneNumber }: ATCProps) {
-    // Custom component to log camera position every frame
-    function CameraLogger() {
-        const { camera } = useThree();
-        useFrame(() => {
-            // Euler angles in radians
-            const { x, y, z } = camera.rotation;
-            console.log(
-                `Camera position: x=${camera.position.x.toFixed(2)}, y=${camera.position.y.toFixed(2)}, z=${camera.position.z.toFixed(2)} | rotation (rad): x=${x.toFixed(2)}, y=${y.toFixed(2)}, z=${z.toFixed(2)}`
+    const renderScene = () => {
+        if (sceneNumber > 3) {
+            return (
+                <>
+                    <ambientLight intensity={10} />
+                    <directionalLight 
+                        position={[10, 8, 8]} 
+                        intensity={4.5} 
+                        castShadow 
+                        shadow-mapSize-width={2048} 
+                        shadow-mapSize-height={2048} 
+                    />
+                    <Scene3 stepNumber={sceneNumber - 3} />
+                </>
             );
-        });
-        return null;
-    }
-
-    // Update camera position/rotation in response to `sceneNumber` changes.
-    // React Three Fiber `camera` is mutable and the Canvas camera doesn't reinitialize
-    // when props change, so we explicitly set its position and rotation here.
-    function CameraUpdater({ sceneNumber }: { sceneNumber: number }) {
-        const { camera } = useThree();
-        useEffect(() => {
-            if (sceneNumber > 3) {
-                camera.position.set(16.32, 4.13, 5.99);
-                camera.rotation.set(-0.00, -0.57, -0.00);
-            } else if (sceneNumber > 0) {
-                camera.position.set(-12, 11, 0);
-                camera.rotation.set(-Math.PI / 2, 0, 0);
-            } else {
-                camera.position.set(13.9, 4.82, 7.01);
-                camera.rotation.set(-0.47, 0.44, 0.21);
-            }
-            // Ensure projection matrix is updated when we change the camera
-            camera.updateProjectionMatrix();
-        }, [sceneNumber, camera]);
-
-        return null;
-    }
+        }
+        
+        if (sceneNumber > 0) {
+            return (
+                <>
+                    <ambientLight intensity={10} />
+                    <directionalLight 
+                        position={[0, 10, 0]} 
+                        intensity={4.5} 
+                        castShadow 
+                        shadow-mapSize-width={2048} 
+                        shadow-mapSize-height={2048} 
+                    />
+                    <Scene2 stepNumber={sceneNumber} />
+                </>
+            );
+        }
+        
+        return (
+            <>
+                <ambientLight intensity={10} />
+                <directionalLight 
+                    position={[10, 8, 8]} 
+                    intensity={4.5} 
+                    castShadow 
+                    shadow-mapSize-width={2048} 
+                    shadow-mapSize-height={2048} 
+                />
+                <Scene1 maxSpeed={maxSpeed} />
+            </>
+        );
+    };
 
     return (
         <div className="w-full h-[600px]">
             <Canvas shadows>
                 <CameraUpdater sceneNumber={sceneNumber} />
                 {/* <OrbitControls /> */}
-                {/* <CameraLogger /> */}
-                <>
-                    {sceneNumber > 3 &&
-                        <>
-                            <ambientLight intensity={10} />
-                            <directionalLight position={[10, 8, 8]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-                            <Scene3 stepNumber={sceneNumber - 3} />
-                        </>
-                    }
-                    {sceneNumber > 0 && sceneNumber <= 3 &&
-                        <>
-                            <ambientLight intensity={10} />
-                            <directionalLight position={[0, 10, 0]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-                            <Scene2 stepNumber={sceneNumber} />
-                        </>
-                    }
-                    {sceneNumber == 0 &&
-                        <>
-                            <ambientLight intensity={10} />
-                            <directionalLight position={[10, 8, 8]} intensity={4.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-                            <Scene1 maxSpeed={maxSpeed} />
-                        </>
-                    }
-                </>
+                {renderScene()}
             </Canvas>
         </div>
     );
