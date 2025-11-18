@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { InteractiveScene } from './components/InteractiveScene';
 import { SpeedControls } from './components/SpeedControls';
 import { TimelineDescription } from './components/TimelineDescription';
 import { Scene3D } from './components/Scene3D';
