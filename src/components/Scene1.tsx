@@ -1,4 +1,4 @@
-import { ANIMATION_CONSTANTS, configureMeshVisibility } from './Scene3D';
+import { ANIMATION_CONSTANTS, configureMeshVisibility, MODEL_PATH } from './Scene3D';
 import { useFrame } from '@react-three/fiber';
 import { useRef, useEffect } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
@@ -34,7 +34,7 @@ interface SceneProps1 {
 
 export function Scene1({ maxSpeed }: SceneProps1) {
     const group = useRef<any>(null);
-    const { animations, scene } = useGLTF("models/shinkansen_separated_3.glb");
+    const { animations, scene } = useGLTF(MODEL_PATH);
     const { actions } = useAnimations(animations, scene);
 
     const sleepersActionRef = useRef<AnimationAction | null>(null);

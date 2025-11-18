@@ -1,4 +1,4 @@
-import { SCENE_CONSTANTS } from './Scene3D';
+import { SCENE_CONSTANTS, MODEL_PATH } from './Scene3D';
 import { useFrame } from '@react-three/fiber';
 import { useRef, useState, useEffect } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
@@ -221,7 +221,7 @@ interface SceneProps2 {
 
 export function Scene2({ stepNumber }: SceneProps2) {
     const group = useRef<any>(null);
-    const { animations, scene } = useGLTF("models/shinkansen_separated_3.glb");
+    const { animations, scene } = useGLTF(MODEL_PATH);
 
     const empty = scene.getObjectByName("empty");
     const rails = scene.getObjectByName("rails");

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { SpeedControls } from './components/SpeedControls';
 import { TimelineDescription } from './components/TimelineDescription';
 import { Scene3D } from './components/Scene3D';
-import { ArrowLeftRight, ArrowUpDown } from 'lucide-react';
 
 export default function App() {
   const [maxSpeed, setMaxSpeed] = useState(180);

@@ -17,7 +17,8 @@ import { Scene3 } from './Scene3';
 // https://ja.wikipedia.org/wiki/%E6%8C%AF%E5%B9%85%E5%A4%89%E8%AA%BF
 
 // Preload 3D models
-useGLTF.preload("models/shinkansen_separated_3.glb");
+export const MODEL_PATH = "models/shinkansen_separated_3.glb";
+useGLTF.preload(MODEL_PATH);
 
 export const SCENE_CONSTANTS = {
     RAIL_SEGMENT_LENGTH: 23.7,
