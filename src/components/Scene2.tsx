@@ -1,14 +1,16 @@
 import { SCENE_CONSTANTS, MODEL_PATH } from './Scene3D';
-import { useFrame } from '@react-three/fiber';
-import { useRef, useState, useEffect } from "react";
+import { useFrame, useThree } from '@react-three/fiber';
+import { useRef, useState, useEffect, JSX } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { gsap } from 'gsap';
+import { Scene } from './Scene';
 import {
     Object3D,
     Mesh,
     Quaternion,
     Vector3,
 } from "three";
+import { TimelineDescription } from './TimelineDescription';
 
 /**
  * Computes split point along a wire at a given X coordinate
@@ -215,188 +217,249 @@ function TrafficLight({ position, isGreen }: { position: [number, number, number
 // SCENE 2: TRACK CIRCUIT DEMONSTRATION
 // ============================================================================
 
-interface SceneProps2 {
-    stepNumber: number;
-}
+export class Scene2 implements Scene {
 
-export function Scene2({ stepNumber }: SceneProps2) {
-    const group = useRef<any>(null);
-    const { animations, scene } = useGLTF(MODEL_PATH);
+    readonly frameCount = 3;
+    
+    camera({ currentFrame }: { currentFrame: number }) {
+        const { camera } = useThree();
 
-    const empty = scene.getObjectByName("empty");
-    const rails = scene.getObjectByName("rails");
-    const axleObjectRef = useRef<Object3D | null>(null);
+        const cameraPositions = [
+            {    
+                position: [-12, 11, 0] as [number, number, number],
+                rotation: [-Math.PI / 2, 0, 0] as [number, number, number],
+            }
+        ];
 
-    const [frontAxlePosX, setfrontAxlePosX] = useState<number | null>(null);
-    const [isTrafficOccupied, setIsTrafficOccupied] = useState(false);
+        useEffect(() => {
+            camera.position.set(...cameraPositions[currentFrame % cameraPositions.length].position);
+            camera.rotation.set(...cameraPositions[currentFrame % cameraPositions.length].rotation);   
+        }, []);
+        
+        return null;
+    }
 
-    const TRAFFIC_LIGHT_POS_X = -21;
-    const INNER_WIDTH = 3.03;
+    lighting({ currentFrame }: { currentFrame: number; }): JSX.Element {
+        return ( 
+            <>
+                <ambientLight intensity={10} />
+                <directionalLight
+                    position={[0, 10, 0]}
+                    intensity={4.5}
+                    castShadow
+                    shadow-mapSize-width={2048}
+                    shadow-mapSize-height={2048}
+                />
+            </>
+        );
+    }
 
-    // Initialize scene: add rail copies and configure train visibility
-    useEffect(() => {
-        const addedObjects: Object3D[] = [];
-
-        // Add rail copies on both sides
-        if (rails) {
-            const [rails_copy1, rails_copy2] = [rails.clone(), rails.clone()];
-            rails_copy1.position.x = 23.699;
-            rails_copy2.position.x = -23.699;
-            scene.add(rails_copy1, rails_copy2);
-            addedObjects.push(rails_copy1, rails_copy2);
-        }
-
-        // Show only axles, hide train body
-        if (empty) {
-            empty.traverse((obj: Object3D) => {
-                if (obj.name.toLowerCase().includes("train")) {
-                    obj.visible = false;
-                } else if (obj.name?.toLowerCase() === "axle") {
-                    axleObjectRef.current = obj;
-                    obj.visible = true;
-                    obj.castShadow = true;
-                } else {
-                    obj.visible = true;
-                    obj.castShadow = true;
-                }
-            });
-        }
-
-        if (group.current) {
-            group.current.position.set(0, 0, 0);
-            group.current.scale.z = -1;
-        }
-
-        return () => {
-            addedObjects.forEach((obj) => scene.remove(obj));
+    objects({ currentFrame }: { currentFrame: number }) {
+        const group = useRef<any>(null);
+        const { animations, scene } = useGLTF(MODEL_PATH);
+    
+        const empty = scene.getObjectByName("empty");
+        const rails = scene.getObjectByName("rails");
+        const axleObjectRef = useRef<Object3D | null>(null);
+    
+        const [frontAxlePosX, setfrontAxlePosX] = useState<number | null>(null);
+        const [isTrafficOccupied, setIsTrafficOccupied] = useState(false);
+    
+        const TRAFFIC_LIGHT_POS_X = -21;
+        const INNER_WIDTH = 3.03;
+    
+        // Initialize scene: add rail copies and configure train visibility
+        useEffect(() => {
+            const addedObjects: Object3D[] = [];
+    
+            // Add rail copies on both sides
+            if (rails) {
+                const [rails_copy1, rails_copy2] = [rails.clone(), rails.clone()];
+                rails_copy1.position.x = 23.699;
+                rails_copy2.position.x = -23.699;
+                scene.add(rails_copy1, rails_copy2);
+                addedObjects.push(rails_copy1, rails_copy2);
+            }
+    
+            // Show only axles, hide train body
             if (empty) {
-                empty.position.set(0, 0, 0);
                 empty.traverse((obj: Object3D) => {
-                    obj.visible = true;
+                    if (obj.name.toLowerCase().includes("train")) {
+                        obj.visible = false;
+                    } else if (obj.name?.toLowerCase() === "axle") {
+                        axleObjectRef.current = obj;
+                        obj.visible = true;
+                        obj.castShadow = true;
+                    } else {
+                        obj.visible = true;
+                        obj.castShadow = true;
+                    }
                 });
             }
-        };
-    }, []);
-
-    // GSAP animations based on stepNumber
-    useEffect(() => {
-        if (!empty) return;
-
-        gsap.killTweensOf(empty.position);
-
-        const animations = {
-            1: () => gsap.set(empty.position, { x: -25 }),
-            2: () => {
-                gsap.set(empty.position, { x: -25 });
-                gsap.to(empty.position, {
-                    x: -0.1,
-                    duration: 4,
-                    ease: "power1.inOut",
-                    repeat: -1,
-                    repeatDelay: 1,
-                    onRepeat: () => { gsap.set(empty.position, { x: -30 }); }
-                });
-            },
-            3: () => {
-                gsap.set(empty.position, { x: -0.1 });
-                gsap.to(empty.position, {
-                    x: 35,
-                    duration: 4,
-                    ease: "power1.inOut",
-                    repeat: -1,
-                    repeatDelay: 1,
-                    onRepeat: () => { gsap.set(empty.position, { x: 0 }); }
-                });
-            },
-        };
-
-        animations[stepNumber as keyof typeof animations]?.();
-
-        return () => gsap.killTweensOf(empty.position);
-    }, [stepNumber, empty]);
-
-    // Track front axle position and update circuit state
-    useFrame(() => {
-        if (!axleObjectRef.current) {
-            setfrontAxlePosX(null);
-            setIsTrafficOccupied(false);
-            return;
-        }
-
-        const worldPos = new Vector3();
-        axleObjectRef.current.getWorldPosition(worldPos);
-        const x = worldPos.x;
-
-        let xPos = null;
-        if (x >= TRAFFIC_LIGHT_POS_X && x <= SCENE_CONSTANTS.INTRA_WIDTH * 2 + SCENE_CONSTANTS.INTER_WIDTH) {
-            if (x <= 0) {
-                xPos = x;
-            } else if (x <= SCENE_CONSTANTS.INTRA_WIDTH) {
-                xPos = x - SCENE_CONSTANTS.INTRA_WIDTH;
-            } else if (x <= SCENE_CONSTANTS.INTRA_WIDTH + SCENE_CONSTANTS.INTER_WIDTH) {
-                xPos = x - (SCENE_CONSTANTS.INTRA_WIDTH + SCENE_CONSTANTS.INTER_WIDTH);
-            } else {
-                xPos = x - (SCENE_CONSTANTS.INTRA_WIDTH * 2 + SCENE_CONSTANTS.INTER_WIDTH);
+    
+            if (group.current) {
+                group.current.position.set(0, 0, 0);
+                group.current.scale.z = -1;
             }
-        }
+    
+            return () => {
+                addedObjects.forEach((obj) => scene.remove(obj));
+                if (empty) {
+                    empty.position.set(0, 0, 0);
+                    empty.traverse((obj: Object3D) => {
+                        obj.visible = true;
+                    });
+                }
+            };
+        }, []);
+    
+        // GSAP animations based on stepNumber
+        useEffect(() => {
+            if (!empty) return;
+    
+            gsap.killTweensOf(empty.position);
+    
+            const animations = {
+                0: () => gsap.set(empty.position, { x: -25 }),
+                1: () => {
+                    gsap.set(empty.position, { x: -25 });
+                    gsap.to(empty.position, {
+                        x: -0.1,
+                        duration: 4,
+                        ease: "power1.inOut",
+                        repeat: -1,
+                        repeatDelay: 1,
+                        onRepeat: () => { gsap.set(empty.position, { x: -30 }); }
+                    });
+                },
+                2: () => {
+                    gsap.set(empty.position, { x: -0.1 });
+                    gsap.to(empty.position, {
+                        x: 35,
+                        duration: 4,
+                        ease: "power1.inOut",
+                        repeat: -1,
+                        repeatDelay: 1,
+                        onRepeat: () => { gsap.set(empty.position, { x: 0 }); }
+                    });
+                },
+            };
+    
+            animations[currentFrame as keyof typeof animations]?.();
+    
+            return () => gsap.killTweensOf(empty.position);
+        }, [currentFrame, empty]);
+    
+        // Track front axle position and update circuit state
+        useFrame(() => {
+            if (!axleObjectRef.current) {
+                setfrontAxlePosX(null);
+                setIsTrafficOccupied(false);
+                return;
+            }
+    
+            const worldPos = new Vector3();
+            axleObjectRef.current.getWorldPosition(worldPos);
+            const x = worldPos.x;
+    
+            let xPos = null;
+            if (x >= TRAFFIC_LIGHT_POS_X && x <= SCENE_CONSTANTS.INTRA_WIDTH * 2 + SCENE_CONSTANTS.INTER_WIDTH) {
+                if (x <= 0) {
+                    xPos = x;
+                } else if (x <= SCENE_CONSTANTS.INTRA_WIDTH) {
+                    xPos = x - SCENE_CONSTANTS.INTRA_WIDTH;
+                } else if (x <= SCENE_CONSTANTS.INTRA_WIDTH + SCENE_CONSTANTS.INTER_WIDTH) {
+                    xPos = x - (SCENE_CONSTANTS.INTRA_WIDTH + SCENE_CONSTANTS.INTER_WIDTH);
+                } else {
+                    xPos = x - (SCENE_CONSTANTS.INTRA_WIDTH * 2 + SCENE_CONSTANTS.INTER_WIDTH);
+                }
+            }
+    
+            setfrontAxlePosX(xPos);
+            setIsTrafficOccupied(xPos !== null);
+        });
+    
+        return (
+            <>
+                <primitive ref={group} object={scene} />
+                <mesh position={[0, -0.8, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+                    <planeGeometry args={[90, 10]} />
+                    <meshStandardMaterial color="grey" />
+                </mesh>
+    
+                <Battery position={[0, 1, 0]} />
+                <TrafficLight position={[TRAFFIC_LIGHT_POS_X, 1, 3]} isGreen={!isTrafficOccupied} />
+    
+                {/* Circuit wires */}
+                <CircuitWire
+                    start={[0, 1, INNER_WIDTH / 2]}
+                    end={[0, 1, -INNER_WIDTH / 2]}
+                    color="#ff6600"
+                />
+                <CircuitWire
+                    start={[0, 1, -INNER_WIDTH / 2]}
+                    end={[TRAFFIC_LIGHT_POS_X, 1, -INNER_WIDTH / 2]}
+                    splitAtX={frontAxlePosX ?? undefined}
+                    batteryX={0}
+                    onColor="#ff6600"
+                    offColor="#333333"
+                    active={!frontAxlePosX || isTrafficOccupied}
+                />
+                <CircuitWire
+                    start={[TRAFFIC_LIGHT_POS_X, 1, -INNER_WIDTH / 2]}
+                    end={[TRAFFIC_LIGHT_POS_X, 1, 3]}
+                    color="#ff6600"
+                    active={!isTrafficOccupied}
+                />
+                <CircuitWire
+                    start={[TRAFFIC_LIGHT_POS_X, 1, 3]}
+                    end={[TRAFFIC_LIGHT_POS_X + 0.5, 1, 3]}
+                    color="#ff6600"
+                    active={!isTrafficOccupied}
+                />
+                <CircuitWire
+                    start={[TRAFFIC_LIGHT_POS_X + 0.5, 1, 3]}
+                    end={[TRAFFIC_LIGHT_POS_X + 0.5, 1, INNER_WIDTH / 2]}
+                    color="#ff6600"
+                    active={!isTrafficOccupied}
+                />
+                <CircuitWire
+                    start={[TRAFFIC_LIGHT_POS_X + 0.5, 1, INNER_WIDTH / 2]}
+                    end={[0, 1, INNER_WIDTH / 2]}
+                    splitAtX={frontAxlePosX ?? undefined}
+                    batteryX={0}
+                    onColor="#ff6600"
+                    offColor="#333333"
+                    active={!frontAxlePosX || isTrafficOccupied}
+                />
+            </>
+        );
+    }
 
-        setfrontAxlePosX(xPos);
-        setIsTrafficOccupied(xPos !== null);
-    });
+    description({ currentFrame }: { currentFrame: number; }): JSX.Element {
+    
+        const timelineSteps = [
+            {
+                title: "軌道回路（きどうかいろ）",
+                description: "鉄道の当初からの最も基本的な衝突を回避する技術は、その道路にあるみたいな信号機。鉄道車両は停まるまでのブレーキ距離が長いですので、運転士にちゃんと手配させてあげなきゃいけません。この信号機は線路を区切って、一つの区間に一本の列車しか入れないことにします。列車がなんかの「閉塞区間」に存在するかどうか検知できる機械を、今から説明します。"
+            },
+            {
+                title: "軌道回路（きどうかいろ）",
+                description: "これは軌道回路と呼ばれます。この装置は線路にある信号機を動かすために用います。軌道回路の原理は、鉄道の輪軸が2本のレールを短絡して電気回路を構成することにあります。この回路に信号機を取り付けて列車の存在を後続列車に知らせます。"
+            },
+            {
+                title: "軌道回路（きどうかいろ）",
+                description: "この回路は列車が出るまで短絡で残っています。そして、信号機がこうなります。"
+            },
+        ];
 
-    return (
-        <>
-            <primitive ref={group} object={scene} />
-            <mesh position={[0, -0.8, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-                <planeGeometry args={[90, 10]} />
-                <meshStandardMaterial color="grey" />
-            </mesh>
-
-            <Battery position={[0, 1, 0]} />
-            <TrafficLight position={[TRAFFIC_LIGHT_POS_X, 1, 3]} isGreen={!isTrafficOccupied} />
-
-            {/* Circuit wires */}
-            <CircuitWire
-                start={[0, 1, INNER_WIDTH / 2]}
-                end={[0, 1, -INNER_WIDTH / 2]}
-                color="#ff6600"
+        return (
+            <TimelineDescription
+                title={timelineSteps[currentFrame].title}
+                description={timelineSteps[currentFrame].description}
+                currentStep={currentFrame + 1}
+                totalSteps={timelineSteps.length}
             />
-            <CircuitWire
-                start={[0, 1, -INNER_WIDTH / 2]}
-                end={[TRAFFIC_LIGHT_POS_X, 1, -INNER_WIDTH / 2]}
-                splitAtX={frontAxlePosX ?? undefined}
-                batteryX={0}
-                onColor="#ff6600"
-                offColor="#333333"
-                active={!frontAxlePosX || isTrafficOccupied}
-            />
-            <CircuitWire
-                start={[TRAFFIC_LIGHT_POS_X, 1, -INNER_WIDTH / 2]}
-                end={[TRAFFIC_LIGHT_POS_X, 1, 3]}
-                color="#ff6600"
-                active={!isTrafficOccupied}
-            />
-            <CircuitWire
-                start={[TRAFFIC_LIGHT_POS_X, 1, 3]}
-                end={[TRAFFIC_LIGHT_POS_X + 0.5, 1, 3]}
-                color="#ff6600"
-                active={!isTrafficOccupied}
-            />
-            <CircuitWire
-                start={[TRAFFIC_LIGHT_POS_X + 0.5, 1, 3]}
-                end={[TRAFFIC_LIGHT_POS_X + 0.5, 1, INNER_WIDTH / 2]}
-                color="#ff6600"
-                active={!isTrafficOccupied}
-            />
-            <CircuitWire
-                start={[TRAFFIC_LIGHT_POS_X + 0.5, 1, INNER_WIDTH / 2]}
-                end={[0, 1, INNER_WIDTH / 2]}
-                splitAtX={frontAxlePosX ?? undefined}
-                batteryX={0}
-                onColor="#ff6600"
-                offColor="#333333"
-                active={!frontAxlePosX || isTrafficOccupied}
-            />
-        </>
-    );
+        );
+    }
 }

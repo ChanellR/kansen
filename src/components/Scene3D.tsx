@@ -1,5 +1,5 @@
 import { Canvas, useThree } from '@react-three/fiber';
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import {
     Object3D,
@@ -7,6 +7,7 @@ import {
     DoubleSide,
 } from "three";
 
+import { Scene } from './Scene';
 import { Scene1 } from './Scene1';
 import { Scene2 } from './Scene2';
 import { Scene3 } from './Scene3';
@@ -37,11 +38,6 @@ export const ANIMATION_CONSTANTS = {
     BASE_SPEED_DIVISOR: 210 / 5,
 } as const;
 
-interface ATCProps {
-    maxSpeed: number;
-    sceneNumber: number;
-}
-
 /**
  * Enables shadows and double-sided rendering for all meshes in an object
  */
@@ -62,106 +58,59 @@ export function configureMeshVisibility(obj: Object3D, visible = true) {
     });
 }
 
+export class Scene3D {
 
-// ============================================================================
-// CAMERA CONTROL COMPONENTS
-// ============================================================================
+    component() {
+        
+        // Memoize the scenes so the array reference is stable across renders
+        const Scenes: Scene[] = useMemo(() => [new Scene1(), new Scene2(), new Scene3()], []);
+        const [[currentScene, currentFrame], setSceneAndFrame] = useState<[number, number]>([0, 0]);
 
-/**
- * Camera position configurations for each scene
- */
-const CAMERA_POSITIONS = {
-    scene1: {
-        position: [13.9, 4.82, 7.01] as [number, number, number],
-        rotation: [-0.47, 0.44, 0.21] as [number, number, number],
-    },
-    scene2and3: {
-        position: [-12, 11, 0] as [number, number, number],
-        rotation: [-Math.PI / 2, 0, 0] as [number, number, number],
-    },
-    scene4plus: {
-        position: [16.32, 4.13, 5.99] as [number, number, number],
-        rotation: [-0.00, -0.57, -0.00] as [number, number, number],
-    },
-} as const;
+        useEffect(() => {
+            // Use functional updates so we don't depend on stale `currentScene` / `currentFrame` values
+            const handleKeyDown = (e: KeyboardEvent) => {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
 
-function CameraUpdater({ sceneNumber }: { sceneNumber: number }) {
-    const { camera } = useThree();
+                setSceneAndFrame(([prevScene, prevFrame]) => {
+                    const scenesLen = Scenes.length;
+                    if (e.key === 'ArrowRight') {
+                        const frameCount = (Scenes[prevScene] && Scenes[prevScene].frameCount) || 0;
+                        if (prevFrame < frameCount - 1) {
+                            return [prevScene, prevFrame + 1];
+                        }
+                        return [(prevScene + 1) % scenesLen, 0];
+                    }
 
-    useEffect(() => {
-        let config;
-        if (sceneNumber > 3) {
-            config = CAMERA_POSITIONS.scene4plus;
-        } else if (sceneNumber > 0) {
-            config = CAMERA_POSITIONS.scene2and3;
-        } else {
-            config = CAMERA_POSITIONS.scene1;
-        }
+                    // ArrowLeft
+                    if (prevFrame > 0) return [prevScene, prevFrame - 1];
+                    const prevSceneIndex = (prevScene - 1 + scenesLen) % scenesLen;
+                    const prevSceneFrames = (Scenes[prevSceneIndex] && Scenes[prevSceneIndex].frameCount) || 1;
+                    return [prevSceneIndex, Math.max(0, prevSceneFrames - 1)];
+                });
+            };
+            window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
+        }, []);
 
-        camera.position.set(...config.position);
-        camera.rotation.set(...config.rotation);
-        camera.updateProjectionMatrix();
-    }, [sceneNumber]);
-
-    return null;
-}
-
-export function Scene3D({ maxSpeed, sceneNumber }: ATCProps) {
-    const renderScene = () => {
-        if (sceneNumber > 3) {
-            return (
-                <>
-                    <ambientLight intensity={10} />
-                    <directionalLight
-                        position={[10, 8, 8]}
-                        intensity={4.5}
-                        castShadow
-                        shadow-mapSize-width={2048}
-                        shadow-mapSize-height={2048}
-                    />
-                    <Scene3 stepNumber={sceneNumber - 3} />
-                </>
-            );
-        }
-
-        if (sceneNumber > 0) {
-            return (
-                <>
-                    <ambientLight intensity={10} />
-                    <directionalLight
-                        position={[0, 10, 0]}
-                        intensity={4.5}
-                        castShadow
-                        shadow-mapSize-width={2048}
-                        shadow-mapSize-height={2048}
-                    />
-                    <Scene2 stepNumber={sceneNumber} />
-                </>
-            );
-        }
+        const CurrentObjects = Scenes[currentScene]?.objects;
+        const CurrentLighting = Scenes[currentScene]?.lighting;
+        const CurrentCamera = Scenes[currentScene]?.camera;
+        const CurrentDescription = Scenes[currentScene]?.description;
 
         return (
             <>
-                <ambientLight intensity={10} />
-                <directionalLight
-                    position={[10, 8, 8]}
-                    intensity={4.5}
-                    castShadow
-                    shadow-mapSize-width={2048}
-                    shadow-mapSize-height={2048}
-                />
-                <Scene1 maxSpeed={maxSpeed} />
+                <div className="flex-2 h-[600px]">
+                    <Canvas shadows>
+                        {/* <OrbitControls /> */}
+                        <CurrentObjects currentFrame={currentFrame} />
+                        <CurrentLighting currentFrame={currentFrame} />
+                        <CurrentCamera currentFrame={currentFrame} />
+                    </Canvas>
+                </div>
+                <div className="flex-1">
+                    <CurrentDescription currentFrame={currentFrame}/>
+                </div>
             </>
         );
-    };
-
-    return (
-        <div className="w-full h-[600px]">
-            <Canvas shadows>
-                <CameraUpdater sceneNumber={sceneNumber} />
-                {/* <OrbitControls /> */}
-                {renderScene()}
-            </Canvas>
-        </div>
-    );
+    }
 }
