@@ -58,14 +58,23 @@ export function configureMeshVisibility(obj: Object3D, visible = true) {
     });
 }
 
+const SceneClasses = [Scene1, Scene2, Scene3];
+
 export class Scene3D {
 
-    component() {
+    readonly totalFrameCount: number;
+
+    constructor() {
+        this.totalFrameCount = SceneClasses.reduce((sum, SceneClass) => sum + new SceneClass().frameCount, 0);
+    }
+    
+    component( { setCurrentStep }: { setCurrentStep: React.Dispatch<React.SetStateAction<number>> } ) {
         
         // Memoize the scenes so the array reference is stable across renders
-        const Scenes: Scene[] = useMemo(() => [new Scene1(), new Scene2(), new Scene3()], []);
+        const Scenes: Scene[] = useMemo(() => SceneClasses.map(SceneClass => new SceneClass()), []);
+        const totalFrameCount = Scenes.reduce((sum, scene) => sum + scene.frameCount, 0);
+        
         const [[currentScene, currentFrame], setSceneAndFrame] = useState<[number, number]>([0, 0]);
-
         useEffect(() => {
             // Use functional updates so we don't depend on stale `currentScene` / `currentFrame` values
             const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,14 +83,16 @@ export class Scene3D {
                 setSceneAndFrame(([prevScene, prevFrame]) => {
                     const scenesLen = Scenes.length;
                     if (e.key === 'ArrowRight') {
+                        setCurrentStep((prev) => (prev + 1) % totalFrameCount);
                         const frameCount = (Scenes[prevScene] && Scenes[prevScene].frameCount) || 0;
                         if (prevFrame < frameCount - 1) {
                             return [prevScene, prevFrame + 1];
                         }
                         return [(prevScene + 1) % scenesLen, 0];
                     }
-
+                    
                     // ArrowLeft
+                    setCurrentStep((prev) => (prev - 1 + totalFrameCount) % totalFrameCount);
                     if (prevFrame > 0) return [prevScene, prevFrame - 1];
                     const prevSceneIndex = (prevScene - 1 + scenesLen) % scenesLen;
                     const prevSceneFrames = (Scenes[prevSceneIndex] && Scenes[prevSceneIndex].frameCount) || 1;
@@ -92,10 +103,10 @@ export class Scene3D {
             return () => window.removeEventListener('keydown', handleKeyDown);
         }, []);
 
-        const CurrentObjects = Scenes[currentScene]?.objects;
-        const CurrentLighting = Scenes[currentScene]?.lighting;
-        const CurrentCamera = Scenes[currentScene]?.camera;
-        const CurrentDescription = Scenes[currentScene]?.description;
+        const CurrentObjects = Scenes[currentScene].objects;
+        const CurrentLighting = Scenes[currentScene].lighting;
+        const CurrentCamera = Scenes[currentScene].camera;
+        const CurrentDescription = Scenes[currentScene].description;
 
         return (
             <>
