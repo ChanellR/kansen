@@ -11,7 +11,7 @@ import {
 import { Scene } from './Scene';
 import { Scene1 } from './Scene1';
 import { Scene2 } from './Scene2';
-import { Scene3 } from './Scene3';
+import { Scene3, SpeedProvider } from './Scene3';
 
 // Reference links for ATC system design:
 // https://ja.wikipedia.org/wiki/%E8%87%AA%E5%8B%95%E5%88%97%E8%BB%8A%E5%88%B6%E5%BE%A1%E8%A3%85%E7%BD%AE#cite_ref-5
@@ -59,6 +59,7 @@ export function configureMeshVisibility(obj: Object3D, visible = true) {
     });
 }
 
+// BUG: If Scene3 and Scene1 are adjacent, there is a bug with the presentation of Scene3's train model.
 const SceneClasses = [Scene1, Scene2, Scene3];
 
 export class Scene3D {
@@ -73,7 +74,7 @@ export class Scene3D {
         
         // Memoize the scenes so the array reference is stable across renders
         const Scenes: Scene[] = useMemo(() => SceneClasses.map(SceneClass => new SceneClass()), []);
-        const totalFrameCount = Scenes.reduce((sum, scene) => sum + scene.frameCount, 0);
+        const totalFrameCount = useMemo(() => Scenes.reduce((sum, scene) => sum + scene.frameCount, 0), [Scenes]);
         
         const [[currentScene, currentFrame], setSceneAndFrame] = useState<[number, number]>([0, 0]);
         useEffect(() => {
@@ -81,10 +82,15 @@ export class Scene3D {
             const handleKeyDown = (e: KeyboardEvent) => {
                 if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
 
+                if (e.key === 'ArrowRight') {
+                    setCurrentStep((prev) => (prev + 1) % totalFrameCount);
+                } else {
+                    setCurrentStep((prev) => (prev - 1 + totalFrameCount) % totalFrameCount);
+                }
+
                 setSceneAndFrame(([prevScene, prevFrame]) => {
                     const scenesLen = Scenes.length;
                     if (e.key === 'ArrowRight') {
-                        setCurrentStep((prev) => (prev + 1) % totalFrameCount);
                         const frameCount = (Scenes[prevScene] && Scenes[prevScene].frameCount) || 0;
                         if (prevFrame < frameCount - 1) {
                             return [prevScene, prevFrame + 1];
@@ -93,7 +99,6 @@ export class Scene3D {
                     }
                     
                     // ArrowLeft
-                    setCurrentStep((prev) => (prev - 1 + totalFrameCount) % totalFrameCount);
                     if (prevFrame > 0) return [prevScene, prevFrame - 1];
                     const prevSceneIndex = (prevScene - 1 + scenesLen) % scenesLen;
                     const prevSceneFrames = (Scenes[prevSceneIndex] && Scenes[prevSceneIndex].frameCount) || 1;
@@ -108,7 +113,7 @@ export class Scene3D {
         const CurrentLighting = Scenes[currentScene].lighting;
         const CurrentCamera = Scenes[currentScene].camera;
         const CurrentDescription = Scenes[currentScene].description;
-        const CurrentProvider = Scenes[currentScene].provider;
+        const CurrentProvider = SpeedProvider;
 
         function CameraLogger() {
             const { camera } = useThree();
@@ -122,27 +127,23 @@ export class Scene3D {
             return null;
         }
 
-        const content = (
+        return (
             <>
-                <div className="flex-2 h-[600px]">
-                    <Canvas shadows>
-                        {/* <OrbitControls />
-                        <CameraLogger /> */}
-                        <CurrentObjects currentFrame={currentFrame} />
-                        <CurrentLighting currentFrame={currentFrame} />
-                        <CurrentCamera currentFrame={currentFrame} />
-                    </Canvas>
-                </div>
-                <div className="flex-1">
-                    <CurrentDescription currentFrame={currentFrame}/>
-                </div>
+                <CurrentProvider>
+                    <div className="flex-2 h-[600px]">
+                        <Canvas shadows>
+                            {/* <OrbitControls /> */}
+                            {/* <CameraLogger /> */}
+                            <CurrentObjects currentFrame={currentFrame} />
+                            <CurrentLighting currentFrame={currentFrame} />
+                            <CurrentCamera currentFrame={currentFrame} />      
+                        </Canvas>
+                    </div>
+                    <div className="flex-1">
+                        <CurrentDescription currentFrame={currentFrame}/>
+                    </div>
+                </CurrentProvider>
             </>
         );
-
-        if (CurrentProvider) {
-            const ProviderComp = CurrentProvider;
-            return <ProviderComp>{content}</ProviderComp>;
-        }
-        return content;
     }
 }

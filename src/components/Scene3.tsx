@@ -100,6 +100,18 @@ export function useSceneSpeed(): SpeedContextValue {
     return ctx;
 }
 
+// Provider to expose speed/speedLimit to both objects() and description()
+export function SpeedProvider({ children }: { children: React.ReactNode }): JSX.Element | null {
+    const [speed, setSpeed] = useState<number>(180);
+    const [speedLimit, setSpeedLimit] = useState<number>(180);
+
+    return (
+        <SpeedContext.Provider value={{ speed, setSpeed, speedLimit, setSpeedLimit }}>
+            {children}
+        </SpeedContext.Provider>
+    );
+}
+
 export class Scene3 implements Scene {
 
     readonly frameCount: number = 4;
@@ -271,7 +283,9 @@ export class Scene3 implements Scene {
     
         // Update traffic light states based on train position
         useFrame((_, delta) => {
-            if (!train) return;
+            if (!train || !empty) return;
+
+            // console.log("empty position:", empty.position.x);
             
             mixersRef.current.forEach((mixer) => {
                 mixer.update(delta);
@@ -334,18 +348,6 @@ export class Scene3 implements Scene {
                     );
                 })}
             </>
-        );
-    }
-
-    // Provider to expose speed/speedLimit to both objects() and description()
-    provider({ children }: { children: React.ReactNode }): JSX.Element | null {
-        const [speed, setSpeed] = useState<number>(180);
-        const [speedLimit, setSpeedLimit] = useState<number>(180);
-
-        return (
-            <SpeedContext.Provider value={{ speed, setSpeed, speedLimit, setSpeedLimit }}>
-                {children}
-            </SpeedContext.Provider>
         );
     }
 

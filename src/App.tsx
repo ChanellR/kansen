@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, use } from 'react';
 import { Scene3D } from './components/Scene3D';
 
 export default function App() {
