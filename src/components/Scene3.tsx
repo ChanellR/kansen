@@ -1,16 +1,18 @@
-import { configureMeshVisibility, SCENE_CONSTANTS, MODEL_PATH } from './Scene3D';
+import { configureMeshVisibility, ANIMATION_CONSTANTS, SCENE_CONSTANTS, MODEL_PATH } from './Scene3D';
 import { useFrame, useThree } from '@react-three/fiber';
-import { JSX, useRef, useState, useEffect } from "react";
+import React, { JSX, useRef, useState, useEffect, createContext, useContext } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { gsap } from 'gsap';
 import {
     Object3D,
     AnimationAction,
     Vector3,
+    AnimationMixer,
 } from "three";
-
 import { Scene } from './Scene';
 import { TimelineDescription } from './TimelineDescription';
+import { ATCSpeedDisplay } from './SpeedDisplay';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 type TrafficLightState = 'red' | 'orange' | 'green';
 
@@ -83,9 +85,24 @@ function calculateTrafficLightState(
     return 'green';
 }
 
+type SpeedContextValue = {
+    speed: number;
+    setSpeed: React.Dispatch<React.SetStateAction<number>>;
+    speedLimit: number;
+    setSpeedLimit: React.Dispatch<React.SetStateAction<number>>;
+};
+
+const SpeedContext = createContext<SpeedContextValue | undefined>(undefined);
+
+export function useSceneSpeed(): SpeedContextValue {
+    const ctx = useContext(SpeedContext);
+    if (!ctx) throw new Error('useSceneSpeed must be used within Scene provider');
+    return ctx;
+}
+
 export class Scene3 implements Scene {
 
-    readonly frameCount: number = 2;
+    readonly frameCount: number = 4;
 
     camera({ currentFrame }: { currentFrame: number }) {
         const { camera } = useThree();
@@ -94,13 +111,23 @@ export class Scene3 implements Scene {
             {    
                 position: [16.32, 4.13, 5.99] as [number, number, number],
                 rotation: [-0.00, -0.57, -0.00] as [number, number, number],
+            },
+            {    
+                position: [0, 5, 0] as [number, number, number],
+                rotation: [-Math.PI / 2, -Math.PI / 3, -Math.PI / 2] as [number, number, number],
             }
         ];
 
+        
         useEffect(() => {
-            camera.position.set(...cameraPositions[currentFrame % cameraPositions.length].position);
-            camera.rotation.set(...cameraPositions[currentFrame % cameraPositions.length].rotation);   
-        }, []);
+            if (currentFrame === 3) {
+                camera.position.set(...cameraPositions[1].position);
+                camera.rotation.set(...cameraPositions[1].rotation);   
+            } else {
+                camera.position.set(...cameraPositions[0].position);
+                camera.rotation.set(...cameraPositions[0].rotation);   
+            }
+        }, [currentFrame]);
         
         return null;
     }
@@ -125,6 +152,7 @@ export class Scene3 implements Scene {
         const group = useRef<any>(null);
         const { animations, scene } = useGLTF(MODEL_PATH);
         const { actions } = useAnimations(animations, scene);
+        const mixersRef = useRef<AnimationMixer[]>([]);
     
         const train = scene.getObjectByName("train");
         const rails = scene.getObjectByName("rails");
@@ -146,9 +174,21 @@ export class Scene3 implements Scene {
     
             // Create additional rail segments (4 total)
             if (rails) {
+
+                const sleepersClip = animations.find(clip => clip.name === "sleepersAction");
+
                 for (let i = 1; i < 5; i++) {
-                    const railsCopy = rails.clone();
-                    railsCopy.position.x = i * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH;
+                    const railsCopy = SkeletonUtils.clone(rails);
+                    railsCopy.position.x = i * (SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH - 0.25);
+
+                    if (sleepersClip) {
+                        const mixer = new AnimationMixer(railsCopy);
+                        const action = mixer.clipAction(sleepersClip);
+                        action.reset();
+                        action.play();
+                        mixersRef.current.push(mixer);
+                    }
+                    
                     scene.add(railsCopy);
                     addedObjects.push(railsCopy);
                 }
@@ -162,7 +202,7 @@ export class Scene3 implements Scene {
             if (actions) {
                 const played: AnimationAction[] = [];
                 Object.entries(actions).forEach(([key, action]) => {
-                    if (action && key.startsWith("axleAction")) {
+                    if (action && (key.startsWith("axleAction") || key === "sleepersAction")) {
                         action.reset();
                         action.play();
                         played.push(action);
@@ -173,11 +213,15 @@ export class Scene3 implements Scene {
                     played.forEach((a) => a.stop());
                     addedObjects.forEach((obj) => scene.remove(obj));
                     if (empty) empty.position.set(0, 0, 0);
+                    mixersRef.current.forEach((mixer) => mixer.stopAllAction());
+                    mixersRef.current = [];
                 };
             }
     
             return () => {
                 addedObjects.forEach((obj) => scene.remove(obj));
+                mixersRef.current.forEach((mixer) => mixer.stopAllAction());
+                mixersRef.current = [];
             };
         }, []);
     
@@ -192,26 +236,57 @@ export class Scene3 implements Scene {
             } else if (currentFrame === 1) {
                 gsap.set(empty.position, { x: 3 });
                 gsap.to(empty.position, {
-                    x: 90,
+                    x: 100,
                     duration: 6,
                     ease: "linear",
                     repeat: -1,
-                    repeatDelay: 1,
+                    repeatDelay: 0,
                     onRepeat: () => { gsap.set(empty.position, { x: 0 }); }
                 });
+            } else if (currentFrame === 2) {
+                gsap.set(empty.position, { x: 2 });
+                gsap.to(empty.position, {
+                    x: 100,
+                    duration: 1.5,
+                    ease: "linear",
+                    repeat: -1,
+                    repeatDelay: 0,
+                    onRepeat: () => { gsap.set(empty.position, { x: 2 }); }
+                });
+            } else if (currentFrame === 3) {
+                gsap.set(empty.position, { x: 2 });
             }
     
             return () => gsap.killTweensOf(empty.position);
         }, [currentFrame, empty]);
+        
+        // Consume speed state provided by provider
+        const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
+        useEffect(() => {
+            const speedScale = speed / ANIMATION_CONSTANTS.BASE_SPEED_DIVISOR;
+            mixersRef.current.forEach((mixer) => {  
+                mixer.timeScale = (currentFrame !== 3) ? 0 : speedScale * ANIMATION_CONSTANTS.SPEED_MULTIPLIER;
+            });
+        }, [currentFrame, speed]);
     
         // Update traffic light states based on train position
-        useFrame(() => {
+        useFrame((_, delta) => {
             if (!train) return;
-    
+            
+            mixersRef.current.forEach((mixer) => {
+                mixer.update(delta);
+            });
+
+            // Gradually reduce speed if it exceeds speedLimit
+            if (speed >= speedLimit) {
+                setSpeed((prev) => speedLimit);
+            }
+
             const worldPos = new Vector3();
             train.getWorldPosition(worldPos);
             const tx = worldPos.x;
-    
+            
+            if (currentFrame === 3) return;
             const nextStates = Array.from({ length: NUM_LIGHTS }, (_, idx) =>
                 calculateTrafficLightState(tx, idx + 1, SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH)
             );
@@ -232,7 +307,7 @@ export class Scene3 implements Scene {
                 </mesh>
     
                 {/* Traffic lights at the beginning of each rail segment */}
-                {Array.from({ length: NUM_LIGHTS }, (_, i) => {
+                {currentFrame < 3 && Array.from({ length: NUM_LIGHTS }, (_, i) => {
                     const lightIndex = i + 1;
                     return (
                         <group key={lightIndex}>
@@ -262,6 +337,18 @@ export class Scene3 implements Scene {
         );
     }
 
+    // Provider to expose speed/speedLimit to both objects() and description()
+    provider({ children }: { children: React.ReactNode }): JSX.Element | null {
+        const [speed, setSpeed] = useState<number>(180);
+        const [speedLimit, setSpeedLimit] = useState<number>(180);
+
+        return (
+            <SpeedContext.Provider value={{ speed, setSpeed, speedLimit, setSpeedLimit }}>
+                {children}
+            </SpeedContext.Provider>
+        );
+    }
+
     description({ currentFrame }: { currentFrame: number; }): JSX.Element {
     
         const timelineSteps = [
@@ -271,17 +358,45 @@ export class Scene3 implements Scene {
             },
             {
                 title: "鉄道の信号機",
-                description: "三つの色を持っている信号機は列車の進行方向に置いて、後続の列車の許容速度は、先行の列車との距離に決めています。こうやって、新幹線の開業からの従来に、鉄道車両が衝突を回避できました。でも、新幹線では地上である信号機は不十分。高速では、運転士が信号機を見落とす可能が上がりますので、「ＡＴＣ」は新しい技でヒューマンエラーによる事故を防ぎます。"
+                description: "三つの色を持っている信号機は列車の進行方向に置いて、後続の列車の許容速度は、先行の列車との距離に決めています。こうやって、新幹線の開業からの従来に、鉄道車両が衝突を回避できました。"
+            },
+            {
+                title: "鉄道の信号機",
+                description: "でも、新幹線では地上である信号機は不十分。高速では、運転士が信号機を見落とす可能が上がりますので、「ＡＴＣ」は新しい技でヒューマンエラーによる事故を防ぎます。"
+            },
+            {
+                title: "車内信号",
+                description: ""
             },
         ];
 
+        function Scene3SpeedConsumer() {
+            const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
+            return (
+                <ATCSpeedDisplay
+                    currentSpeed={speed}
+                    speedLimit={speedLimit}
+                    onSpeedChange={(s) => setSpeed(s)}
+                    onLimitChange={(l) => setSpeedLimit(l)}
+                />
+            );
+        }
+
         return (
-            <TimelineDescription
-                title={timelineSteps[currentFrame].title}
-                description={timelineSteps[currentFrame].description}
-                currentStep={currentFrame + 1}
-                totalSteps={timelineSteps.length}
-            />
+            <div className="flex flex-row gap-4">
+                <div className="flex-1">
+                    <TimelineDescription
+                        title={timelineSteps[currentFrame].title}
+                        description={timelineSteps[currentFrame].description}
+                        currentStep={currentFrame + 1}
+                        totalSteps={timelineSteps.length}
+                    />
+                </div>
+                {currentFrame == 3 && <div className="flex-1">
+                    {/* Use shared state provided by the scene provider */}
+                    <Scene3SpeedConsumer />
+                </div>}
+            </div>
         );
     }
 }

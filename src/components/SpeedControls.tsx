@@ -1,5 +1,4 @@
 import { SpeedGraph } from './SpeedGraph';
-import { Slider } from './ui/slider';
 import { useEffect, useState } from 'react';
 
 interface SpeedControlsProps {
@@ -73,17 +72,6 @@ export function SpeedControls({
               >
                 Max Speed
               </span>
-              <div className="h-full flex items-center">
-                <Slider
-                  value={[maxSpeed]}
-                  onValueChange={(values) => onMaxSpeedChange(values[0])}
-                  min={0}
-                  max={210}
-                  step={0.5}
-                  orientation="vertical"
-                  className="h-full"
-                />
-              </div>
               <span 
                 style={{ 
                   color: '#C97A98',

@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { SpeedControls } from './components/SpeedControls';
-import { TimelineDescription } from './components/TimelineDescription';
 import { Scene3D } from './components/Scene3D';
 
 export default function App() {
@@ -40,7 +38,7 @@ export default function App() {
       </div>
 
       {/* Instructions */}
-      <div 
+      {currentStep > 3 &&<div 
         className="absolute top-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full"
         style={{
           background: 'linear-gradient(145deg, #FFF5F7, #FFE8EE)',
@@ -52,7 +50,7 @@ export default function App() {
         }}
       >
         矢印キーで操作してください
-      </div>
+      </div>}
       
     </div>
   );

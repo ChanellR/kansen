@@ -15,7 +15,7 @@ import { TimelineDescription } from './TimelineDescription';
 /**
  * Adds a point light at the center of a 3D object
  */
-function addCenterLight(obj: Object3D, intensity = 2, distance = 10, decay = 2): PointLight {
+export function addCenterLight(obj: Object3D, intensity = 2, distance = 10, decay = 2): PointLight {
     const boundingBox = new Box3().setFromObject(obj);
     const center = new Vector3();
     boundingBox.getCenter(center);

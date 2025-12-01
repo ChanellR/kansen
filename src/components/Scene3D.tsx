@@ -1,6 +1,7 @@
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
+import { OrbitControls } from '@react-three/drei';
 import {
     Object3D,
     Mesh,
@@ -107,12 +108,26 @@ export class Scene3D {
         const CurrentLighting = Scenes[currentScene].lighting;
         const CurrentCamera = Scenes[currentScene].camera;
         const CurrentDescription = Scenes[currentScene].description;
+        const CurrentProvider = Scenes[currentScene].provider;
 
-        return (
+        function CameraLogger() {
+            const { camera } = useThree();
+            useFrame(() => {
+                // Euler angles in radians
+                const { x, y, z } = camera.rotation;
+                console.log(
+                    `Camera position: x=${camera.position.x.toFixed(2)}, y=${camera.position.y.toFixed(2)}, z=${camera.position.z.toFixed(2)} | rotation (rad): x=${x.toFixed(2)}, y=${y.toFixed(2)}, z=${z.toFixed(2)}`
+                );
+            });
+            return null;
+        }
+
+        const content = (
             <>
                 <div className="flex-2 h-[600px]">
                     <Canvas shadows>
-                        {/* <OrbitControls /> */}
+                        {/* <OrbitControls />
+                        <CameraLogger /> */}
                         <CurrentObjects currentFrame={currentFrame} />
                         <CurrentLighting currentFrame={currentFrame} />
                         <CurrentCamera currentFrame={currentFrame} />
@@ -123,5 +138,11 @@ export class Scene3D {
                 </div>
             </>
         );
+
+        if (CurrentProvider) {
+            const ProviderComp = CurrentProvider;
+            return <ProviderComp>{content}</ProviderComp>;
+        }
+        return content;
     }
 }

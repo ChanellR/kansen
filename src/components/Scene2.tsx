@@ -258,6 +258,7 @@ export class Scene2 implements Scene {
         const group = useRef<any>(null);
         const { animations, scene } = useGLTF(MODEL_PATH);
     
+        // empty object is parent to train and axles
         const empty = scene.getObjectByName("empty");
         const rails = scene.getObjectByName("rails");
         const axleObjectRef = useRef<Object3D | null>(null);
