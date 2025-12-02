@@ -9,7 +9,7 @@ import {
     Vector3,
     AnimationMixer,
 } from "three";
-import { Scene } from './Scene';
+import { Scene, AnimateVector } from './utils';
 import { TimelineDescription } from './TimelineDescription';
 import { ATCSpeedDisplay } from './SpeedDisplay';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -117,28 +117,32 @@ export class Scene3 implements Scene {
     readonly frameCount: number = 4;
 
     camera({ currentFrame }: { currentFrame: number }) {
-        const { camera } = useThree();
 
         const cameraPositions = [
             {    
-                position: [16.32, 4.13, 5.99] as [number, number, number],
-                rotation: [-0.00, -0.57, -0.00] as [number, number, number],
+                position: {x: 16.32, y: 4.13, z: 5.99} as {x: number; y: number; z: number; },
+                rotation: {x: -0.00, y: -0.57, z: -0.00} as {x: number; y: number; z: number; },
             },
             {    
-                position: [0, 5, 0] as [number, number, number],
-                rotation: [-Math.PI / 2, -Math.PI / 3, -Math.PI / 2] as [number, number, number],
+                position: {x: 0, y: 5, z: 0} as {x: number; y: number; z: number; },
+                rotation: {x: -Math.PI / 2, y: -Math.PI / 3, z: -Math.PI / 2} as {x: number; y: number; z: number; },
             }
         ];
-
         
+        const { camera } = useThree();
+        const cameraSettingIndices = [0, 0, 0, 1];
         useEffect(() => {
-            if (currentFrame === 3) {
-                camera.position.set(...cameraPositions[1].position);
-                camera.rotation.set(...cameraPositions[1].rotation);   
-            } else {
-                camera.position.set(...cameraPositions[0].position);
-                camera.rotation.set(...cameraPositions[0].rotation);   
-            }
+            gsap.killTweensOf(camera.position);
+            gsap.killTweensOf(camera.rotation);
+
+            const targetIndex = cameraSettingIndices[currentFrame];
+            const endPos = cameraPositions[targetIndex].position;
+            const endRot = cameraPositions[targetIndex].rotation;
+
+            AnimateVector(camera.position, endPos, 2, (x, y, z) => camera.position.set(x, y, z));
+            AnimateVector(camera.rotation, endRot, 2, (x, y, z) => camera.rotation.set(x, y, z));
+    
+            return () => { gsap.killTweensOf(camera.position); gsap.killTweensOf(camera.rotation); }
         }, [currentFrame]);
         
         return null;

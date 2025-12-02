@@ -2,7 +2,7 @@ import { ANIMATION_CONSTANTS, configureMeshVisibility, MODEL_PATH } from './Scen
 import { useFrame, useThree } from '@react-three/fiber';
 import { useRef, useEffect, useState, use, JSX } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
-import { Scene } from './Scene';
+import { Scene } from './utils';
 import {
     Object3D,
     AnimationAction,

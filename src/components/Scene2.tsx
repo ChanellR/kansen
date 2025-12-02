@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useRef, useState, useEffect, JSX } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { gsap } from 'gsap';
-import { Scene } from './Scene';
+import { Scene, AnimateVector } from './utils';
 import {
     Object3D,
     Mesh,
@@ -222,7 +222,6 @@ export class Scene2 implements Scene {
     readonly frameCount = 3;
     
     camera({ currentFrame }: { currentFrame: number }) {
-        const { camera } = useThree();
 
         const cameraPositions = [
             {    
@@ -231,6 +230,7 @@ export class Scene2 implements Scene {
             }
         ];
 
+        const { camera } = useThree();
         useEffect(() => {
             camera.position.set(...cameraPositions[currentFrame % cameraPositions.length].position);
             camera.rotation.set(...cameraPositions[currentFrame % cameraPositions.length].rotation);   

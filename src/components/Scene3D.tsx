@@ -8,10 +8,11 @@ import {
     DoubleSide,
 } from "three";
 
-import { Scene } from './Scene';
+import { Scene } from './utils';
 import { Scene1 } from './Scene1';
 import { Scene2 } from './Scene2';
 import { Scene3, SpeedProvider } from './Scene3';
+import { Scene4 } from './Scene4';
 
 // Reference links for ATC system design:
 // https://ja.wikipedia.org/wiki/%E8%87%AA%E5%8B%95%E5%88%97%E8%BB%8A%E5%88%B6%E5%BE%A1%E8%A3%85%E7%BD%AE#cite_ref-5
@@ -60,7 +61,7 @@ export function configureMeshVisibility(obj: Object3D, visible = true) {
 }
 
 // BUG: If Scene3 and Scene1 are adjacent, there is a bug with the presentation of Scene3's train model.
-const SceneClasses = [Scene1, Scene2, Scene3];
+const SceneClasses = [Scene1, Scene2, Scene3, Scene4];
 
 export class Scene3D {
 

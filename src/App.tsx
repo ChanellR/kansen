@@ -38,7 +38,7 @@ export default function App() {
       </div>
 
       {/* Instructions */}
-      {currentStep > 3 &&<div 
+      {currentStep < 3 &&<div 
         className="absolute top-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full"
         style={{
           background: 'linear-gradient(145deg, #FFF5F7, #FFE8EE)',
