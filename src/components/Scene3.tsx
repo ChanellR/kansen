@@ -288,17 +288,10 @@ export class Scene3 implements Scene {
         // Update traffic light states based on train position
         useFrame((_, delta) => {
             if (!train || !empty) return;
-
-            // console.log("empty position:", empty.position.x);
             
             mixersRef.current.forEach((mixer) => {
                 mixer.update(delta);
             });
-
-            // Gradually reduce speed if it exceeds speedLimit
-            if (speed >= speedLimit) {
-                setSpeed((prev) => speedLimit);
-            }
 
             const worldPos = new Vector3();
             train.getWorldPosition(worldPos);

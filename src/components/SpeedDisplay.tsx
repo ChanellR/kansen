@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
 interface ATCSpeedDisplayProps {
     currentSpeed: number;
     speedLimit: number;
-    onSpeedChange?: (speed: number) => void;
-    onLimitChange?: (limit: number) => void;
+    onSpeedChange: (speed: number) => void;
+    onLimitChange: (limit: number) => void;
 }
 
 export function ATCSpeedDisplay({
@@ -13,9 +12,9 @@ export function ATCSpeedDisplay({
     onSpeedChange,
     onLimitChange
 }: ATCSpeedDisplayProps) {
-    const speedLimits = [0, 30, 70, 110, 160, 210, 260];
+    const SPEED_LIMITS = [0, 30, 70, 110, 160, 210, 260];
+    const MAX_SPEED = 260;
     const [animate, setAnimate] = useState(false);
-    const [limitPosition, setLimitPosition] = useState(speedLimit);
 
     useEffect(() => {
         setAnimate(false);
@@ -45,7 +44,7 @@ export function ATCSpeedDisplay({
                     className="mb-4 flex items-center justify-center"
                     style={{
                         color: '#C97A98',
-                        fontSize: '2rem',
+                        fontSize: '1.2rem',
                         lineHeight: '1.2'
                     }}
                 >
@@ -53,78 +52,95 @@ export function ATCSpeedDisplay({
                 </h2>
 
                 <div
-                    className={`p-6 gap-8 transition-all duration-700 ${animate ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'
-                        }`}
+                    className={`relative p-6 px-8`}
                     style={{
                         borderRadius: '16px',
                         border: '1px solid rgba(212, 137, 158, 1)',
                         position: 'relative',
-                        // height: '120px'
+                        height: '185px'
                     }}>
-                    
-                    
+
                     {/* Speed Limit Indicators */}
-                    <div className="flex justify-between items-end">
-                        {speedLimits.map((limit, i) => (
+                    <div className="relative">
+                        {SPEED_LIMITS.map((limit, i) => (
                             <div
-                                className={"rounded-full"}
-                                key={i}
-                                onClick= {(e) => {
-                                    if (onLimitChange) {
-                                        onLimitChange(limit);
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setLimitPosition(rect.left + rect.width / 2);
-                                    }
-                                }}
+                                className={"absolute rounded-full -translate-x-1/2"}
+                                key={`limit-${i}`}
+                                onClick= {(e) => onLimitChange(limit)}
                                 style={{
                                     background: (i > 0 && limit <= speedLimit) ? 'radial-gradient(circle, #FFB6C1 0%, #FF69B4 100%)' : 'transparent',
                                     border: i === 0 ? '1px solid black' : '1px solid rgba(212, 137, 158, 1)',
-                                    position: 'relative',
+                                    left: `${limit / MAX_SPEED * 100}%`,
                                     width: '32px',
                                     height: '32px',
                                     boxShadow: '0 0 8px rgba(255, 105, 180, 0.6)'
                                 }}
-                                ></div>
-                            ))}
+                                >
+                            </div>
+                        ))}
                     </div>
 
-                    {/* <div style={{height: '40px'}}></div> */}
+                    {/* Speed Limit Labels */}
+                    <div className="relative" style={{height: "40px", top: "40px"}}>
+                        {SPEED_LIMITS.map((limit, i) => (
+                            <div
+                                className={"absolute -translate-x-1/2 "}
+                                key={`label-${i}`}
+                                style={{
+                                    left: `${limit / MAX_SPEED * 100}%`,
+                                    color: '#C97A98',
+                                    fontSize: '1.2rem',
+                                    fontFamily: 'roboto, sans-serif',
+                                    lineHeight: '1.2',
+                                }}
+                                >{limit}
+                            </div>
+                        ))}
+                    </div>
 
                     {/* Speedometer ticks */}
-                    <div 
-                        className="flex justify-between items-end bottom-0 pb-4" 
-                        style={{marginTop: '20px', padding: '0 16px', position: 'relative', cursor: onSpeedChange ? 'pointer' : 'default'}}
+                    <div
+                        className="relative"
+                        style={{height: "40px", top: "40px"}}
                         onClick={(e) => {
                             if (onSpeedChange) {
                                 const rect = e.currentTarget.getBoundingClientRect();
                                 const x = e.clientX - (rect.left + 16);
                                 const percentage = Math.max(0, Math.min(1, x / (rect.width - 32)));
-                                const newSpeed = Math.round(percentage * 260);
+                                const newSpeed = Math.round(percentage * MAX_SPEED);
+                                console.log("Setting speed to:", newSpeed);
                                 onSpeedChange(newSpeed);
                             }
                         }}
                     >
-                        {Array.from({ length: 31 }, (_, i) => (
-                            <div
-                                key={i}
-                                style={{
-                                    width: '1px',
-                                    height: i % 5 === 0 ? '40px' : '20px',
-                                    background: '#000',
-                                    opacity: 0.7
-                                }}
-                            />
-                        ))}
-                        
+                        {Array.from({ length: MAX_SPEED / 5 + 1 }, (_, i) => {
+                            const val = i * 5;
+                            const isLimit = SPEED_LIMITS.includes(val);
+                            return (
+                                <div
+                                    className="absolute bottom-0"
+                                    key={`tick-${val}`}
+                                    style={{
+                                        left: `${(i * 5) / MAX_SPEED * 100}%`,
+                                        bottom: '0%',
+                                        width: '1px',
+                                        height: isLimit ? '40px' : (val % 10 == 5 ? '12px' : '20px'),
+                                        background: '#000',
+                                        opacity: 0.7
+                                    }}
+                                />
+                            );
+                        })}
+
                         {/* Speed needle */}
                         <div
                             style={{
                                 position: 'absolute',
-                                left: `calc(16px + ${(currentSpeed / 260) * 100}%)`,
+                                left: `${(currentSpeed / MAX_SPEED) * 100}%`,
                                 bottom: '0',
                                 transform: 'translateX(-50%)',
                                 width: '3px',
-                                height: '60px',
+                                height: '30px',
                                 background: 'linear-gradient(180deg, #FF69B4 0%, #FFB6C1 100%)',
                                 boxShadow: '0 0 8px rgba(255, 105, 180, 0.8)',
                                 borderRadius: '2px 2px 0 0',
@@ -133,7 +149,34 @@ export function ATCSpeedDisplay({
                                 zIndex: 10
                             }}
                         />
+
+                        {/* Straight Black line */}
+                        <div
+                            className="absolute rounded-full"
+                            style={{
+                                top: '50px',
+                                background: '#000',
+                                width: `${100}%`,
+                                height: '1px',
+                                transition: 'width 0.7s ease-out'
+                            }}
+                        />
+
+                        {/* km/h */}
+                        <div
+                            className="absolute -translate-x-1/2"
+                            style={{
+                                top: '55px',
+                                left: '50%',
+                                fontSize: '1rem',
+                                color: '#432e36ff',
+                                fontFamily: 'roboto, sans-serif',
+                                lineHeight: '1.2',
+                            }}
+                        >km/h
+                        </div>
                     </div>
+
                 </div>
 
                 {/* Decorative element */}
