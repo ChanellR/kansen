@@ -18,6 +18,7 @@ import { addCenterLight } from './Scene1';
 import { Tunnel } from './Tunnel';
 import { Station } from './Station';
 import { createReadStream } from 'fs';
+import { PiecewisePlot } from './PiecewisePlot';
 
 export class Scene5 implements Scene {
 
@@ -206,6 +207,7 @@ export class Scene5 implements Scene {
 
             if (currentFrame === 0) {
                 setSpeed(150);
+                setSpeedLimit(160);
                 gsap.set(empty.position, { x: 4 });
                 tunnelRef.current.visible = false;
                 if (frontTrain.current) {
@@ -221,7 +223,8 @@ export class Scene5 implements Scene {
             } else if (currentFrame === 2) {
                 if (frontTrain.current) frontTrain.current.visible = false;
                 if (empty.position.x < SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH) {
-                    setSpeed(300);
+                    setSpeed(210);
+                    setSpeedLimit(260);
                     setRailCopies(10);
                 } else {
                     // Sitting at the station
@@ -258,7 +261,7 @@ export class Scene5 implements Scene {
             mixersRef.current.forEach((mixer) => {
                 mixer.timeScale = (finsihedTraveling) ? 0 : speedScale * ANIMATION_CONSTANTS.SPEED_MULTIPLIER;
             });
-            
+
             axleActionsRef.current.forEach((action) => {
                 action.setEffectiveTimeScale(speedScale);
             });
@@ -266,17 +269,17 @@ export class Scene5 implements Scene {
 
         useFrame(({ clock }, delta) => {
             if (!train || !empty) return;
-            
+
             mixersRef.current.forEach((mixer) => {
                 mixer.update(delta);
             });
-            
+
             if (currentFrame === 0) {
                 // oscilate the train forwards and backwards
                 const time = clock.getElapsedTime();
-                empty.position.x = 4 + Math.sin(time * 1.5) * 4; 
+                empty.position.x = 4 + Math.sin(time * 1.5) * 4;
             } else if (currentFrame === 1) {
-            } else if (currentFrame === 2) {    
+            } else if (currentFrame === 2) {
                 // follow the train until it gets to the tunnel
                 if (empty.position.x < 2 * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH) {
                     setFinishedTraveling(false);
@@ -286,17 +289,17 @@ export class Scene5 implements Scene {
 
                     const worldPos = new Vector3();
                     train.getWorldPosition(worldPos);
-                    
+
                     const startYOffset = railCopies * 2;
                     const startZOffset = railCopies * 8;
                     const endYOffset = 4;
                     const endZOffset = 8;
                     const targetX = (railCopies - 2) * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH;
-                    
+
                     const tx = worldPos.x;
-                    const xRatio = Math.max(0.001, (targetX - tx) / targetX);    
+                    const xRatio = Math.max(0.001, (targetX - tx) / targetX);
                     const offset = { x: 0, y: startYOffset * xRatio + endYOffset * (1 - xRatio), z: startZOffset * xRatio + endZOffset * (1 - xRatio) };
-                    
+
                     camera.position.set(tx + offset.x, offset.y, offset.z);
                     camera.lookAt(tx, 0, 0);
                 } else {
@@ -325,16 +328,16 @@ export class Scene5 implements Scene {
                                 rotation={[0, Math.PI / 2, 0]}
                             />
                             <group position={[0, 1.15, 0]}>
-                                <Station 
-                                    position={[1.5 * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH, 0, -SCENE_CONSTANTS.RAIL_WIDTH * 1.5]} 
-                                    rotation={[0, Math.PI / 2, 0]} 
-                                    platformLength={20} 
+                                <Station
+                                    position={[1.5 * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH, 0, -SCENE_CONSTANTS.RAIL_WIDTH * 1.5]}
+                                    rotation={[0, Math.PI / 2, 0]}
+                                    platformLength={20}
                                     platformWidth={6} />
 
-                                <Station 
-                                    position={[1.5 * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH, 0, SCENE_CONSTANTS.RAIL_WIDTH * 1.5]} 
-                                    rotation={[0, Math.PI / 2, 0]} 
-                                    platformLength={20} 
+                                <Station
+                                    position={[1.5 * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH, 0, SCENE_CONSTANTS.RAIL_WIDTH * 1.5]}
+                                    rotation={[0, Math.PI / 2, 0]}
+                                    platformLength={20}
                                     platformWidth={6} />
                             </group>
                         </mesh>
@@ -360,19 +363,8 @@ export class Scene5 implements Scene {
                 description: ""
             },
         ];
-
-        function Scene3SpeedConsumer() {
-            const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
-            return (
-                <ATCSpeedDisplay
-                    currentSpeed={speed}
-                    speedLimit={speedLimit}
-                    onSpeedChange={(s) => setSpeed(s)}
-                    onLimitChange={(l) => setSpeedLimit(l)}
-                />
-            );
-        }
-
+        
+        const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
         return (
             <div className="flex flex-row gap-4">
                 <div className="flex-1">
@@ -383,9 +375,42 @@ export class Scene5 implements Scene {
                         totalSteps={timelineSteps.length}
                     />
                 </div>
-                {currentFrame == 3 && <div className="flex-1">
-                    <Scene3SpeedConsumer />
-                </div>}
+                <div className="flex-1">
+                    <ATCSpeedDisplay
+                        currentSpeed={speed}
+                        speedLimit={speedLimit}
+                        onSpeedChange={(s) => setSpeed(s)}
+                        onLimitChange={(l) => setSpeedLimit(l)}
+                    />
+                </div>
+                <div className="flex-1">
+                    <PiecewisePlot
+                        xAxisLabel="Time (s)"
+                        yAxisLabel="Amplitude"
+                        showAxes={true}
+                        functions={[
+                            {
+                                segments: [
+                                    { startX: 0, endX: 2, fn: (x) => x * x },
+                                    { startX: 2, endX: 5, fn: (x) => 4 + (x - 2) },
+                                    { startX: 5, endX: 10, fn: (x) => Math.sin(x) * 3 + 5 }
+                                ],
+                                color: '#C97A98',
+                                label: 'Function 1'
+                            },
+                            {
+                                segments: [
+                                    { startX: 0, endX: 10, fn: (x) => Math.cos(x) * 2 + 3 }
+                                ],
+                                color: '#8B5A6F',
+                                label: 'Function 2'
+                            }
+                        ]}
+                        xRange={[0, 10]}
+                        samplesPerSegment={50}
+                        title="区分的関数"
+                    />
+                </div>
             </div>
         );
     }

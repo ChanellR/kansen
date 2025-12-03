@@ -14,6 +14,9 @@ import {
 import { TimelineDescription } from './TimelineDescription';
 import MagneticFieldBands from './MagneticFieldBands';
 import { useSceneSpeed } from './Scene3';
+import { ATCSpeedDisplay } from './SpeedDisplay';
+import { WaveformDisplay } from './WaveformDisplay';
+import { PiecewisePlot } from './PiecewisePlot';
 
 function CircuitWire({
     start,
@@ -56,16 +59,16 @@ function CircuitWire({
 export class Scene4 implements Scene {
 
     readonly frameCount = 6;
-    
+
     camera({ currentFrame }: { currentFrame: number }) {
 
         const cameraPositions = [
-            {    
+            {
                 // Staring at 受電器
                 // Camera position: x=-11.42, y=0.61, z=3.67 | rotation (rad): x=0.17, y=-0.00, z=0.00
                 position: { x: -11.42, y: 0.61, z: 3.67 },
                 rotation: { x: 0.17, y: -0.00, z: 0.00 },
-                
+
             },
             {
                 // starting at the signal generator
@@ -80,7 +83,7 @@ export class Scene4 implements Scene {
                 rotation: { x: -0.69, y: -0.91, z: -0.58 },
             }
         ];
-        
+
         const { camera } = useThree();
         const cameraSettingIndices = [0, 0, 0, 0, 1, 2];
         useEffect(() => {
@@ -93,15 +96,15 @@ export class Scene4 implements Scene {
 
             AnimateVector(camera.position, endPos, 2, (x, y, z) => camera.position.set(x, y, z));
             AnimateVector(camera.rotation, endRot, 2, (x, y, z) => camera.rotation.set(x, y, z));
-    
+
             return () => { gsap.killTweensOf(camera.position); gsap.killTweensOf(camera.rotation); }
         }, [currentFrame]);
-        
+
         return null;
     }
 
     lighting({ currentFrame }: { currentFrame: number; }): JSX.Element {
-        return ( 
+        return (
             <>
                 <ambientLight intensity={10} />
                 {/* <directionalLight
@@ -111,7 +114,7 @@ export class Scene4 implements Scene {
                     shadow-mapSize-width={2048}
                     shadow-mapSize-height={2048}
                 /> */}
-                <directionalLight intensity={3} position={[-10, -10, 0]}/>
+                <directionalLight intensity={3} position={[-10, -10, 0]} />
                 <directionalLight
                     position={[10, 8, 8]}
                     intensity={4.5}
@@ -127,14 +130,14 @@ export class Scene4 implements Scene {
         const group = useRef<any>(null);
         const { animations, scene } = useGLTF(MODEL_PATH);
         const { actions } = useAnimations(animations, scene);
-        const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed(); 
+        const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
 
         // empty object is parent to train and axles
         const empty = scene.getObjectByName("empty");
         const train = scene.getObjectByName("train");
         const rails = scene.getObjectByName("rails");
-        
-        const receiverRef = useRef<Object3D | null>(null); 
+
+        const receiverRef = useRef<Object3D | null>(null);
 
         const INNER_WIDTH = 3.03;
         // Initialize scene: add rail copies and configure train visibility
@@ -144,7 +147,7 @@ export class Scene4 implements Scene {
             if (train) {
                 train.position.set(0.8, 0.1, 0);
             }
-    
+
             // Add rail copies on both sides
             if (rails) {
                 const rails_copy1 = rails.clone();
@@ -152,7 +155,7 @@ export class Scene4 implements Scene {
                 scene.add(rails_copy1);
                 addedObjects.push(rails_copy1);
             }
-    
+
             // Show only axles, hide train body
             if (empty) {
                 // configureMeshVisibility(empty, true);
@@ -168,13 +171,13 @@ export class Scene4 implements Scene {
                     }
                 });
             }
-    
+
             if (group.current) {
                 group.current.position.set(0, 0, 0);
                 group.current.scale.z = -1;
             }
 
-    
+
             // Play axle animations
             if (actions) {
                 const played: AnimationAction[] = [];
@@ -185,7 +188,7 @@ export class Scene4 implements Scene {
                         played.push(action);
                     }
                 });
-    
+
                 return () => {
                     if (train) train.position.set(0, 0, 0);
                     played.forEach((a) => a.stop());
@@ -195,11 +198,11 @@ export class Scene4 implements Scene {
                         empty.position.set(0, 0, 0);
                         empty.traverse((obj: Object3D) => {
                             obj.visible = true;
-                    });
-                }
+                        });
+                    }
                 };
             }
-    
+
             return () => {
                 addedObjects.forEach((obj) => scene.remove(obj));
                 if (train) train.position.set(0, 0, 0);
@@ -226,41 +229,46 @@ export class Scene4 implements Scene {
                 }
             });
         }, [speed]);
-    
+
         // GSAP animations based on stepNumber
         const [waveSpeed, setWaveSpeed] = useState(0);
         useEffect(() => {
             if (!empty) return;
-    
+
             gsap.killTweensOf(empty.position);
             gsap.set(empty.position, { x: -10 });
-            
+
             const animations = {
                 0: () => {
-                    setSpeed(150);
+                    setSpeed(160);
+                    setSpeedLimit(160);
                 },
                 1: () => {
-                    setWaveSpeed(120);
+                    // setWaveSpeed(120);
+                    setSpeedLimit(160);
                     const speedObj = { val: speed };
                     gsap.to(speedObj, {
-                        val: 150,
+                        val: 160,
                         duration: 1.5,
                         ease: "linear",
                         onUpdate: () => setSpeed(speedObj.val)
                     });
                 },
                 2: () => {
-                    setWaveSpeed(80);
+                    // setWaveSpeed(70);
+                    setSpeedLimit(70);
                     const speedObj = { val: speed };
                     gsap.to(speedObj, {
-                        val: 80,
+                        val: 70,
                         duration: 1.5,
                         ease: "linear",
                         onUpdate: () => setSpeed(speedObj.val)
                     });
                 },
+
                 3: () => {
-                    setWaveSpeed(20);
+                    // setWaveSpeed(0);
+                    setSpeedLimit(0);
                     const speedObj = { val: speed };
                     gsap.to(speedObj, {
                         val: 0,
@@ -273,12 +281,16 @@ export class Scene4 implements Scene {
                     setSpeed(0);
                 }
             };
-    
+
             animations[currentFrame as keyof typeof animations]?.();
-    
+
             return () => gsap.killTweensOf(empty.position);
         }, [currentFrame, empty]);
-    
+
+        useEffect(() => {
+            setTimeout(() => setWaveSpeed(speedLimit), 500);
+        }, [speedLimit]);
+
         const circuitHeight = 0.2;
         const frontAxlePosX = -12.16;
         const waveFrequencyRate = 0.03;
@@ -390,42 +402,57 @@ export class Scene4 implements Scene {
     }
 
     description({ currentFrame }: { currentFrame: number; }): JSX.Element {
-        
-        const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed(); 
+
         const timelineSteps = [
             {
                 title: "軌道回路と電流信号",
-                description: `${speed}`
+                description: ``
             },
             {
                 title: "軌道回路と電流信号",
-                description: `${speed}`
+                description: ``
             },
             {
                 title: "軌道回路と電流信号",
-                description: `${speed}`
+                description: ``
             },
             {
                 title: "軌道回路と電流信号",
-                description: `${speed}`
+                description: ``
             },
             {
                 title: "軌道回路と電流信号",
-                description: `${speed}`
+                description: ``
             },
             {
                 title: "軌道回路と電流信号",
-                description: `${speed}`
+                description: ``
             },
         ];
 
+        const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
         return (
-            <TimelineDescription
-                title={timelineSteps[currentFrame].title}
-                description={timelineSteps[currentFrame].description}
-                currentStep={currentFrame + 1}
-                totalSteps={timelineSteps.length}
-            />
+            <div className="flex flex-row gap-4">
+                <div className="flex-1">
+                    <TimelineDescription
+                        title={timelineSteps[currentFrame].title}
+                        description={timelineSteps[currentFrame].description}
+                        currentStep={currentFrame + 1}
+                        totalSteps={timelineSteps.length}
+                    />
+                </div>
+                <div className="flex-1">
+                    <ATCSpeedDisplay
+                        currentSpeed={speed}
+                        speedLimit={speedLimit}
+                        onSpeedChange={(s) => setSpeed(s)}
+                        onLimitChange={(l) => setSpeedLimit(l)}
+                    />
+                </div>
+                <div className="flex-1">
+                    <WaveformDisplay fn={(elapsedTime) => Math.sin(elapsedTime * 2 * Math.PI * (speedLimit / 260))} />
+                </div>
+            </div>
         );
     }
 }
