@@ -449,9 +449,9 @@ export class Scene4 implements Scene {
                         onLimitChange={(l) => setSpeedLimit(l)}
                     />
                 </div>
-                <div className="flex-1">
+                {currentFrame < 4 &&<div className="flex-1">
                     <WaveformDisplay fn={(elapsedTime) => Math.sin(elapsedTime * 2 * Math.PI * (speedLimit / 260))} />
-                </div>
+                </div>}
             </div>
         );
     }

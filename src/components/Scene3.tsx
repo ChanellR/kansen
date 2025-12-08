@@ -308,7 +308,7 @@ export class Scene3 implements Scene {
                 setTrafficLightStates(nextStates);
             }
         });
-    
+        
         return (
             <>
                 <primitive ref={group} object={scene} />
@@ -368,19 +368,8 @@ export class Scene3 implements Scene {
                 description: ""
             },
         ];
-
-        function Scene3SpeedConsumer() {
-            const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
-            return (
-                <ATCSpeedDisplay
-                    currentSpeed={speed}
-                    speedLimit={speedLimit}
-                    onSpeedChange={(s) => setSpeed(s)}
-                    onLimitChange={(l) => setSpeedLimit(l)}
-                />
-            );
-        }
-
+        
+        const { speed, setSpeed, speedLimit, setSpeedLimit } = useSceneSpeed();
         return (
             <div className="flex flex-row gap-4">
                 <div className="flex-1">
@@ -392,8 +381,12 @@ export class Scene3 implements Scene {
                     />
                 </div>
                 {currentFrame == 3 && <div className="flex-1">
-                    {/* Use shared state provided by the scene provider */}
-                    <Scene3SpeedConsumer />
+                    <ATCSpeedDisplay
+                    currentSpeed={speed}
+                    speedLimit={speedLimit}
+                    onSpeedChange={(s) => setSpeed(s)}
+                    onLimitChange={(l) => setSpeedLimit(l)}
+                    />
                 </div>}
             </div>
         );

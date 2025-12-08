@@ -199,7 +199,7 @@ export class Scene5 implements Scene {
 
         const [finsihedTraveling, setFinishedTraveling] = useState<boolean>(false);
         useEffect(() => {
-            if (!empty) return;
+            if (!empty || !train) return;
 
             gsap.killTweensOf(empty.position);
             gsap.killTweensOf(camera.position);
@@ -223,14 +223,21 @@ export class Scene5 implements Scene {
             } else if (currentFrame === 2) {
                 if (frontTrain.current) frontTrain.current.visible = false;
                 if (empty.position.x < SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH) {
-                    setSpeed(210);
-                    setSpeedLimit(260);
-                    setRailCopies(10);
+                    if (railCopies !== 10) {
+                        setSpeed(210);
+                        setSpeedLimit(260);
+                        setRailCopies(15);
+                    }
                 } else {
                     // Sitting at the station
                     // Camera position: x=201.14, y=4.89, z=15.58 | rotation (rad): x=-0.36, y=-0.02, z=-0.01
-                    const endPos = { x: 201.14, y: 3.50, z: 10.58 };
+                    // const endPos = { x: 201.14, y: 3.50, z: 10.58 };
                     const endRot = { x: 0, y: 0, z: 0 };
+
+                    const worldPos = new Vector3();
+                    train.getWorldPosition(worldPos);
+                    const endPos = { x: (railCopies - 1.45) * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH, y: worldPos.y + 3.3, z: worldPos.z + 9 };
+
                     AnimateVector(camera.position, endPos, 2, (x, y, z) => camera.position.set(x, y, z));
                     AnimateVector(camera.rotation, endRot, 2, (x, y, z) => camera.rotation.set(x, y, z));
 
@@ -267,6 +274,17 @@ export class Scene5 implements Scene {
             });
         }, [speed]);
 
+        const [acceleration, setAcceleration] = useState<number>(0);
+        useFrame(({ clock }, delta) => {
+            if (speed < speedLimit - 5) {
+                setAcceleration(0);
+            } else if (speed > speedLimit) {
+                setAcceleration(-45);
+            }
+            const newSpeed = Math.max(0, speed + acceleration * delta);
+            setSpeed(newSpeed);
+        });
+
         useFrame(({ clock }, delta) => {
             if (!train || !empty) return;
 
@@ -280,22 +298,30 @@ export class Scene5 implements Scene {
                 empty.position.x = 4 + Math.sin(time * 1.5) * 4;
             } else if (currentFrame === 1) {
             } else if (currentFrame === 2) {
+                const pcnt = empty.position.x / ((railCopies - 2) * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH);
+                if (pcnt >= 6.5/8) {
+                    setSpeedLimit(30);
+                } else if (pcnt >= 2/8) {
+                    setSpeedLimit(160);
+                } else {
+                    setSpeedLimit(210);
+                    setSpeed(210);
+                }
                 // follow the train until it gets to the tunnel
                 if (empty.position.x < 2 * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH) {
                     setFinishedTraveling(false);
-                    empty.position.x += (speed / 10) * delta;
+                    empty.position.x += (speed / 5) * delta;
                 } else if (empty.position.x < (railCopies - 2) * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH) {
-                    empty.position.x += (speed / 10) * delta;
-
-                    const worldPos = new Vector3();
-                    train.getWorldPosition(worldPos);
+                    empty.position.x += (speed / 5) * delta;
 
                     const startYOffset = railCopies * 2;
                     const startZOffset = railCopies * 8;
                     const endYOffset = 4;
                     const endZOffset = 8;
                     const targetX = (railCopies - 2) * SCENE_CONSTANTS.RAIL_SEGMENT_LENGTH;
-
+                    
+                    const worldPos = new Vector3();
+                    train.getWorldPosition(worldPos);
                     const tx = worldPos.x;
                     const xRatio = Math.max(0.001, (targetX - tx) / targetX);
                     const offset = { x: 0, y: startYOffset * xRatio + endYOffset * (1 - xRatio), z: startZOffset * xRatio + endZOffset * (1 - xRatio) };
@@ -383,7 +409,7 @@ export class Scene5 implements Scene {
                         onLimitChange={(l) => setSpeedLimit(l)}
                     />
                 </div>
-                <div className="flex-1">
+                {/* <div className="flex-1">
                     <PiecewisePlot
                         xAxisLabel="Time (s)"
                         yAxisLabel="Amplitude"
@@ -410,7 +436,7 @@ export class Scene5 implements Scene {
                         samplesPerSegment={50}
                         title="区分的関数"
                     />
-                </div>
+                </div> */}
             </div>
         );
     }
