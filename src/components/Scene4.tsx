@@ -406,27 +406,27 @@ export class Scene4 implements Scene {
         const timelineSteps = [
             {
                 title: "軌道回路と電流信号",
-                description: ``
+                description: `この情報は軌道回路を通して伝えられます。軌道回路はレールに取り付けられた電気回路で、列車の位置と速度に関するデータを送信します。レールを通じて流れる電流信号は、列車の受電器によって受信されます。`
             },
             {
                 title: "軌道回路と電流信号",
-                description: ``
+                description: `この受電器はレールの電流信号から発生した磁界を把握して、その情報を車内の信号システムに送ります。`
             },
             {
                 title: "軌道回路と電流信号",
-                description: ``
+                description: `それぞれの電流信号の発生された磁界の周波数は異なります。この違いを把握する受電器は、許容速度を超える場合に自動的にブレーキをかけます。`
             },
             {
                 title: "軌道回路と電流信号",
-                description: ``
+                description: `この方法で、停車されることもできます。ＡＴＣでは、列車の車輪しかレールに接触していない場合でも、軌道回路は列車の位置と速度に関する情報を提供します。`
             },
             {
                 title: "軌道回路と電流信号",
-                description: ``
+                description: `これは軌道回路に基づいているので、信号機がなくても、列車の速度を制御できます。`
             },
             {
                 title: "軌道回路と電流信号",
-                description: ``
+                description: `それから、この「閉塞区間」は新幹線の運転指令所（Control Center）に接続しています。いろいろなメッセージがこの指令所から列車に送信されます。`
             },
         ];
 
@@ -449,9 +449,9 @@ export class Scene4 implements Scene {
                         onLimitChange={(l) => setSpeedLimit(l)}
                     />
                 </div>
-                {currentFrame < 4 &&<div className="flex-1">
+                {/* {0 < currentFrame && currentFrame < 4 && <div className="flex-1">
                     <WaveformDisplay fn={(elapsedTime) => Math.sin(elapsedTime * 2 * Math.PI * (speedLimit / 260))} />
-                </div>}
+                </div>} */}
             </div>
         );
     }

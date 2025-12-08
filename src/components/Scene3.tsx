@@ -308,7 +308,7 @@ export class Scene3 implements Scene {
                 setTrafficLightStates(nextStates);
             }
         });
-        
+
         return (
             <>
                 <primitive ref={group} object={scene} />
@@ -365,7 +365,8 @@ export class Scene3 implements Scene {
             },
             {
                 title: "車内信号",
-                description: ""
+                description: "この「自動列車制御装置」というシステムは新幹線の運転台のパネルに許容速度を表示します。この「車内信号」は運転士に速度を知らせて、列車の安全な運行を確保します。それも、ＡＴＣは許容速度を超えたら、自動的にブレーキをかけます。"
+                // この車内信号のカードをクリックして、速度を変えられます。これで、信号機がなくても、列車の速度を制御できます。それも、許容速度を超えたら、ATCは自動的にブレーキをかけます。では、どうやってＡＴＣはこの情報を車上に伝えますか？
             },
         ];
         

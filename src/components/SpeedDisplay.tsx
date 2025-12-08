@@ -104,12 +104,17 @@ export function ATCSpeedDisplay({
                         style={{height: "40px", top: "40px"}}
                         onClick={(e) => {
                             if (onSpeedChange) {
+                                
                                 const rect = e.currentTarget.getBoundingClientRect();
                                 const x = e.clientX - (rect.left + 16);
                                 const percentage = Math.max(0, Math.min(1, x / (rect.width - 32)));
                                 const newSpeed = Math.round(percentage * MAX_SPEED);
                                 console.log("Setting speed to:", newSpeed);
-                                onSpeedChange(newSpeed);
+                                if (newSpeed <= speedLimit) {
+                                    onSpeedChange(newSpeed);
+                                } else {
+                                    console.log("Speed exceeds limit, not changing.");
+                                }
                             }
                         }}
                     >
